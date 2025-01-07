@@ -14,10 +14,5 @@ def user_soft_delete(user: User, db: Session):
     db.refresh(user)  # 세션에서 객체 새로고침
 
 def user_hard_delete(user: User, db: Session):
-    try:
-        # 테이블에서 사용자 삭제
-        db.rollback()  # 트랜잭션 롤백
         db.delete(user)
         db.commit()  # 변경사항 커밋
-    except IntegrityError as e:
-        raise HTTPException(status_code=500, detail="Failed to delete user due to integrity constraints")
