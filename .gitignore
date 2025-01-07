@@ -1,0 +1,32 @@
+migrations/
+alembic.ini
+test.db
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache
+
+# PyCharm
+.idea
+*.iml
+*.ipr
+
+# 가상환경 무시
+.venv
+venv
+
+# Environment
+.env
+
+# macOS
+.DS_Store
+
+# tts
+*.mp3
+
+# log
+*.log
+
+#monitoring/grafana/data
