@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database.session import get_db
+from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.user_service import get_all_users
 from app.models.user import User
-from app.services.user_service import user_soft_delete, user_hard_delete
+from app.services.user_service import user_soft_delete, user_hard_delete, get_user
 
 router = APIRouter(
     prefix="/user",
@@ -19,9 +20,9 @@ def read_users(db: Session = Depends(get_db)):
     return {"users": users}
 
 
-@router.delete("/user/soft/{user_id}")
+@router.delete("/soft/{user_id}", summary="soft delete로 삭제합니다.", description="is_deleted 애트리뷰트를 true로 변환")
 def delete_user(user_id : int, db: Session = Depends(get_db)):
-    user = db.get(User, user_id)  # user_id에 대한 유저 조회
+    user = get_user(user_id, db) # user_id에 대한 유저 조회
 
     # 유저가 없을 경우 예외 처리
     if user is None:
@@ -29,11 +30,11 @@ def delete_user(user_id : int, db: Session = Depends(get_db)):
 
     user_soft_delete(user, db)
 
-    return {"message": f"User {user_id} is soft deleted"}
+    return ResultResponseModel(code=200, message="soft delete 완료", data=None)
 
-@router.delete("/user/hard/{user_id}")
+@router.delete("/hard/{user_id}", summary="hard delete로 삭제합니다.", description="users 테이블에서 user_id에 해당하는 엔트리 삭제")
 def delete_user(user_id : int, db: Session = Depends(get_db)):
-    user = db.get(User, user_id)  # user_id에 대한 유저 조회
+    user = get_user(user_id, db)  # user_id에 대한 유저 조회
 
     # 유저가 없을 경우 예외 처리
     if not user:
@@ -41,4 +42,4 @@ def delete_user(user_id : int, db: Session = Depends(get_db)):
 
     user_hard_delete(user, db)
 
-    return {"message": f"User {user_id} is hard deleted"}
+    return ResultResponseModel(code=200, message="hard delete 완료", data=None)
