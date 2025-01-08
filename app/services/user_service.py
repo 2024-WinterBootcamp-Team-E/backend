@@ -1,7 +1,6 @@
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 from app.models.user import User
-from fastapi import HTTPException
+
 def get_all_users(db: Session):
     return db.query(User).all()
 
@@ -14,5 +13,5 @@ def user_soft_delete(user: User, db: Session):
     db.refresh(user)  # 세션에서 객체 새로고침
 
 def user_hard_delete(user: User, db: Session):
-        db.delete(user)
-        db.commit()  # 변경사항 커밋
+    db.delete(user)
+    db.commit()  # 변경사항 커밋
