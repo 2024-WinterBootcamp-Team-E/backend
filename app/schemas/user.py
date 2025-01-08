@@ -13,13 +13,7 @@ class UserResponse(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    nickname: Optional[str] = None
+    nickname: str
     # 값 추가 입력
-    class Config:
-        orm_mode = True
-
-class UserPasswordUpdate(BaseModel):
-    old_password: str
-    new_password: str
     class Config:
         orm_mode = True

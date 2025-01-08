@@ -8,7 +8,7 @@ class User(Base):
     user_id = Column(Integer, primary_key=True, autoincrement=True)
     id = Column(String(20),nullable=False)
     password = Column(String(20),nullable=False)
-    nickname = Column(String(20), nullable=False)
+    nickname = Column(String(20), nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     modified_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_deleted = Column(Boolean, nullable=False, default=False)

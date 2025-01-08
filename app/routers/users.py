@@ -2,8 +2,8 @@ from fastapi import status, APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.schemas.ResultResponseModel import ResultResponseModel
-from app.schemas.user import UserUpdate, UserPasswordUpdate
-from app.services.user_service import get_all_users, update_user, update_user_password
+from app.schemas.user import UserUpdate
+from app.services.user_service import get_all_users, update_user
 from app.services.user_service import user_soft_delete, user_hard_delete, get_user
 
 router = APIRouter(
@@ -34,30 +34,11 @@ def delete_user(user_id : int, db: Session = Depends(get_db)):
     return ResultResponseModel(code=200, message="hard delete 완료", data=None)
 
 
-@router.patch("/users/{user_id}", summary="사용자 정보 업데이트", description="특정 사용자의 정보를 업데이트합니다.")
+@router.patch("/{user_id}", summary="사용자 정보 업데이트", description="특정 사용자의 정보를 업데이트합니다.")
 def update_existing_user(user_id: int, update_data: UserUpdate, db: Session = Depends(get_db)):
-    """
-    특정 사용자의 정보를 업데이트합니다.
-    """
     user = get_user(user_id, db)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다.")
+    update_user(user, update_data, db)
+    return ResultResponseModel(code=200, message="사용자 정보 업데이트", data=None)
 
-    updated_user = update_user(user, update_data, db)
-    return updated_user
-
-
-@router.patch("/users/password/{user_id}", summary="사용자 비밀번호 업데이트", description="특정 사용자의 비밀번호를 업데이트합니다.")
-def update_existing_user_password(user_id: int, update_data: UserPasswordUpdate, db: Session = Depends(get_db)):
-    """
-    특정 사용자의 정보를 업데이트합니다.
-    """
-    user = get_user(user_id, db)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다.")
-
-    if user.password != update_data.old_password:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="기존 비밀번호가 일치하지 않습니다.")
-
-    updated_user = update_user_password(user, update_data, db)
-    return updated_user
