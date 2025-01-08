@@ -1,6 +1,9 @@
 from sqlalchemy.orm import Session
 from app.models.chat import Chat  # 모델 가져오기
 
+def get_chatrooms(user_id: int,db: Session):
+    return db.query(Chat).filter(Chat.user_id == user_id).all()
+
 def delete_chat(chat: Chat, db: Session):
         db.delete(chat)
         db.commit()

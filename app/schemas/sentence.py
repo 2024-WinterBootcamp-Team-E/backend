@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
 
-class ChatResponse(BaseModel):
+class SentenceResponse(BaseModel):
     sentence_id : int
     content : str
     situation: str
