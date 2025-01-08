@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 from app.schemas.feedback import Feedback
 
-class UserWithFeedback(BaseModel): #user 테이블 정보 + 피드백 list
+class UserWithFeedback(BaseModel):
     user_id: int
     email: str
     nickname: str
