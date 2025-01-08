@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from app.database.session import Base, engine
 from app.routers.api import router
-
+import app.models  # app/models/__init__.py를 통해 모든 모델 로드
 # 데이터베이스 초기화
 Base.metadata.create_all(bind=engine)
 

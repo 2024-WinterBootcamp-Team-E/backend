@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
 from app.database.session import Base
+from sqlalchemy.orm import relationship
 
 # User 모델 정의
 class User(Base):
@@ -12,3 +13,6 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     modified_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_deleted = Column(Boolean, nullable=False, default=False)
+
+    chats = relationship("Chat", back_populates="user")
+    feedbacks = relationship("Feedback", back_populates="user")
