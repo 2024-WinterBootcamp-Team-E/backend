@@ -9,8 +9,8 @@ class Sentence(Base):
     content = Column(String(100), nullable=False)
     situation = Column(String(20), nullable=False)
     voice_url = Column(String(50), nullable=False)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_deleted = Column(Boolean, nullable=False, default=False)
 
-    feedback = relationship("Feedback", back_populates="sentence")
+    feedbackpronunciation_feedback = relationship("Feedback", back_populates="sentence")
