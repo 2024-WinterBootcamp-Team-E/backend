@@ -3,8 +3,9 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import status
 from app.models.user import User
 from fastapi import HTTPException
-from app.schemas.user import UserUpdate,UserCreate
-from datetime import  datetime
+from app.schemas.user import UserUpdate, UserCreate
+from datetime import datetime
+from app.schemas.user import UserUpdate
 
 def get_all_users(db: Session):
     return db.query(User).all()
@@ -56,3 +57,7 @@ def signup_user(user_create: UserCreate, db: Session) -> User:
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="데이터베이스 오류: 중복된 이메일입니다.")
+
+def login_user(db: Session, email: str, password: str):
+    authenticated_user = User(db, email, password)
+    return {"message": "로그인 성공", "user": {"id": authenticated_user.user_id}}
