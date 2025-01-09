@@ -20,3 +20,10 @@ class UserUpdate(BaseModel):
     # 값 추가 입력
     class Config:
         from_attributes = True
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    nickname: str
+
+
