@@ -26,4 +26,8 @@ class UserCreate(BaseModel):
     password: str
     nickname: str
 
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
 
