@@ -13,6 +13,9 @@ router = APIRouter(
 
 @router.get("/{user_id}", summary="모든 채팅방 조회", description="모든 채팅방 정보를 반환합니다.")
 def get_all_chatrooms(user_id: int, db: Session = Depends(get_db)):
+    user = get_user(user_id, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     chatrooms = get_chatrooms(user_id=user_id, db=db)
     if not chatrooms:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
