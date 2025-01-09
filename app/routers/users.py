@@ -15,6 +15,8 @@ router = APIRouter(
 @router.post("/signup", summary="회원 가입", description="유저 정보를 생성")
 def signup(user_create: UserCreate, db: Session = Depends(get_db)):
     user = signup_user(user_create, db)
+    if user.email:
+        raise HTTPException(status_code=404, detail="이미 존재하는 이메일입니다.")
     return ResultResponseModel(code=200, message="회원 가입 성공", data=user.user_id) # 유저 id를 반환하는건 user id 하나
 
 @router.get("/users")
