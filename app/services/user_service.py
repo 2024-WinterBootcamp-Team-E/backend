@@ -3,7 +3,8 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import status
 from app.models.user import User
 from fastapi import HTTPException
-from app.schemas.user import UserUpdate
+from app.schemas.user import UserUpdate,UserCreate
+from datetime import  datetime
 
 def get_all_users(db: Session):
     return db.query(User).all()
@@ -38,3 +39,20 @@ def update_user(user: User, update_data: UserUpdate, db: Session):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="사용자 업데이트 중 오류가 발생했습니다."
         )
+
+def signup_user(user_create: UserCreate, db: Session) -> User:
+    try:
+        new_user = User(
+            email=user_create.email,
+            password=user_create.password,
+            nickname=user_create.nickname,
+            created_at=datetime.utcnow(),
+            is_deleted=False
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return new_user
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="데이터베이스 오류: 중복된 이메일입니다.")
