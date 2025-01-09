@@ -5,7 +5,7 @@ from app.models.user import User
 
 def get_feedbacks(user: User, db: Session):
     feedbacks = db.query(Feedback).options(
-        joinedload(Feedback.sentence)  # Feedback과 Sentence 조인
+        joinedload(Feedback.sentence)
     ).filter(
         Feedback.user_id == user.user_id,
     ).all()

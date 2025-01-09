@@ -8,7 +8,7 @@ class Sentence(BaseModel):
     voice_url : str
     created_at: datetime
     updated_at: datetime
-    deleted_at : bool
+    is_deleted : bool
 
     class Config:
         from_attributes = True

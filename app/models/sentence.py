@@ -13,4 +13,4 @@ class Sentence(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_deleted = Column(Boolean, nullable=False, default=False)
 
-    feedbackpronunciation_feedback = relationship("Feedback", back_populates="sentence")
+    feedbacks = relationship("Feedback", back_populates="sentence")

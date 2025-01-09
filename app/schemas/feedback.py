@@ -9,4 +9,4 @@ class Feedback(BaseModel):
     feedback: str
 
     class Config:
-        from_attributes = True  # Pydantic v2에서 필요한 설정
+        from_attributes = True

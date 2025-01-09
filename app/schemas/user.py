@@ -12,10 +12,11 @@ class UserWithFeedback(BaseModel):
     is_deleted: bool
     feedbacks: Optional[list[Feedback]]
 
-
+    class Config:
+        from_attributes = True
 
 class UserUpdate(BaseModel):
     nickname: str
     # 값 추가 입력
     class Config:
-        orm_mode = True
+        from_attributes = True
