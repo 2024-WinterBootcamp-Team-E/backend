@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database.session import get_db
-from app.services.chat_service import delete_chat, get_chat
+from app.services.chat_service import delete_chat, get_chat, get_chatrooms
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.user_service import get_user
 from app.schemas.chat import ChatResponse
@@ -10,6 +10,16 @@ router = APIRouter(
     prefix="/chat",
     tags=["Chat"]
 )
+
+@router.get("/{user_id}", summary="모든 채팅방 조회", description="모든 채팅방 정보를 반환합니다.")
+def get_all_chatrooms(user_id: int, db: Session = Depends(get_db)):
+    user = get_user(user_id, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    chatrooms = get_chatrooms(user_id=user_id, db=db)
+    if not chatrooms:
+        raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
+    return {"all_chatroom": chatrooms}
 @router.delete("/{user_id}/{chat_id}", summary="Chatroom 삭제", description="특정 user_id와 chat_id에 해당하는 채팅방을 삭제합니다.")
 def delete_chatroom(user_id: int, chat_id: int, db: Session = Depends(get_db)):
     user = get_user(user_id, db)

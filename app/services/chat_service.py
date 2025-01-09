@@ -2,6 +2,9 @@ from sqlalchemy.orm import Session
 from app.models.chat import Chat
 
 
+def get_chatrooms(user_id: int,db: Session):
+    return db.query(Chat).filter(Chat.user_id == user_id).all()
+
 def delete_chat(chat: Chat, db: Session):
         db.delete(chat)
         db.commit()
