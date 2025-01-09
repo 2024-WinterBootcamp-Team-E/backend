@@ -1,12 +1,9 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import status
-
 from app.models.user import User
 from fastapi import HTTPException
-
 from app.schemas.user import UserUpdate
-
 
 def get_all_users(db: Session):
     return db.query(User).all()
@@ -15,22 +12,22 @@ def get_user(user_id : int, db: Session):
     return db.get(User, user_id)
 
 def user_soft_delete(user: User, db: Session):
-    user.is_deleted = True  # is_deleted 필드를 True로... (soft delete)
-    db.commit()  # 변경 사항 커밋
-    db.refresh(user)  # 세션에서 객체 새로고침
+    user.is_deleted = True
+    db.commit()
+    db.refresh(user)
 
 def user_hard_delete(user: User, db: Session):
-        db.delete(user)
-        db.commit()  # 변경사항 커밋
+    db.delete(user)
+    db.commit()
 
 def update_user(user: User, update_data: UserUpdate, db: Session):
     user.nickname = update_data.nickname
     try:
-        db.commit()  # 변경 사항 커밋
-        db.refresh(user)  # 세션에서 객체 새로고침
+        db.commit()
+        db.refresh(user)
         return user
     except IntegrityError as e:
-        db.rollback()  # 오류 발생 시 롤백
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Integrity error: 중복된 값이나 유효하지 않은 데이터가 포함되어 있습니다."
