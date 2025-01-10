@@ -1,12 +1,8 @@
 from pydantic import BaseModel
-from datetime import datetime
-from typing import List
+from app.models.sentence import SituationType
 class Sentence(BaseModel):
     sentence_id: int
-    situation: str
-    created_at: datetime
-    updated_at: datetime
-    is_deleted: bool
+    situation: SituationType
     content: str
     voice_url: str
     class Config:
