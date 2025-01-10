@@ -27,7 +27,6 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="잘못된 비밀번호입니다.")
     return ResultResponseModel(code=200, message="로그인 성공", data=authenticated_user.user_id)
 
-
 @router.get("/users")
 def read_users(db: Session = Depends(get_db)):
     users = get_all_users(db)
