@@ -41,23 +41,9 @@ def update_user(user: User, update_data: UserUpdate, db: Session):
             detail="사용자 업데이트 중 오류가 발생했습니다."
         )
 
-def signup_user(user_create: UserCreate, db: Session) -> User:
-    try:
-        new_user = User(
-            email=user_create.email,
-            password=user_create.password,
-            nickname=user_create.nickname,
-            created_at=datetime.utcnow(),
-            is_deleted=False
-        )
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-        return new_user
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="데이터베이스 오류: 중복된 이메일입니다.")
+def signup_user(user: User, db: Session) -> User:
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
 
-def login_user(db: Session, email: str, password: str):
-    authenticated_user = User(db, email, password)
-    return {"message": "로그인 성공", "user": {"id": authenticated_user.user_id}}

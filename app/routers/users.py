@@ -1,26 +1,40 @@
 from fastapi import status, APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
-
+from sqlalchemy.exc import IntegrityError
 from app.config.aws.s3Clent import upload_audio
 from app.database.session import get_db
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.feedback_service import get_feedbacks
 from app.models.sentence import Sentence
-from app.schemas.user import UserUpdate, UserCreate
+from app.schemas.user import UserUpdate, UserCreate, UserLogin
+from app.models.user import User
 from app.services.user_service import get_all_users, update_user
 from app.services.user_service import user_soft_delete, user_hard_delete, get_user, signup_user
+from datetime import datetime
 
 router = APIRouter(
     prefix="/user",
     tags=["User"]
 )
 
-@router.post("/signup", summary="회원 가입", description="유저 정보를 생성")
+@router.post("/signup", summary="회원 가입", description="새로운 유저의 회원가입")
 def signup(user_create: UserCreate, db: Session = Depends(get_db)):
-    user = signup_user(user_create, db)
-    if user.email:
-        raise HTTPException(status_code=404, detail="이미 존재하는 이메일입니다.")
-    return ResultResponseModel(code=200, message="회원 가입 성공", data=user.user_id) # 유저 id를 반환하는건 user id 하나
+    new_user = User(email=user_create.email,password=user_create.password,nickname=user_create.nickname,
+                    created_at=datetime.utcnow(),is_deleted=False)
+    try:
+        saved_user = signup_user(new_user, db)
+        return ResultResponseModel(code=200, message="회원가입 성공",data=saved_user.user_id)
+    except IntegrityError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="중복된 이메일입니다.")
+
+@router.post("/login", summary="로그인", description="유저의 로그인")
+def login(user: UserLogin, db: Session = Depends(get_db)):
+    authenticated_user = db.query(User).filter(User.email == user.email).first()
+    if not authenticated_user:
+        raise HTTPException(status_code=400, detail="존재하지 않는 이메일입니다.")
+    if authenticated_user.password != user.password:
+        raise HTTPException(status_code=400, detail="잘못된 비밀번호입니다.")
+    return ResultResponseModel(code=200, message="로그인 성공", data=authenticated_user.user_id)
 
 @router.get("/users")
 def read_users(db: Session = Depends(get_db)):
