@@ -32,7 +32,7 @@ def delete_chatroom(user_id: int, chat_id: int, db: Session = Depends(get_db)):
     return ResultResponseModel(code=200, message="Chatroom deleted successfully", data=None)
 
 @router.get("/{user_id}/{chat_id}", summary="특정 채팅방 조회", description="특정 user_id와 chat_id에 해당하는 채팅방 정보를 반환합니다.")
-def get_chat_detail(user_id: int, chat_id: int, db: Session = Depends(get_db)):
+def get_chatroom_detail(user_id: int, chat_id: int, db: Session = Depends(get_db)):
     user = get_user(user_id, db)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

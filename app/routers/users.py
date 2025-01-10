@@ -27,6 +27,7 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="잘못된 비밀번호입니다.")
     return ResultResponseModel(code=200, message="로그인 성공", data=authenticated_user.user_id)
 
+
 @router.get("/users")
 def read_users(db: Session = Depends(get_db)):
     users = get_all_users(db)
@@ -62,7 +63,7 @@ def delete_user(user_id : int, db: Session = Depends(get_db)):
 def update_existing_user(user_id: int, update_data: UserUpdate, db: Session = Depends(get_db)):
     user = get_user(user_id, db)
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     update_user(user, update_data, db)
     return ResultResponseModel(code=200, message="사용자 정보 업데이트", data=None)
 

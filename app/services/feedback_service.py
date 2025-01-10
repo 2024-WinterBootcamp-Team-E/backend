@@ -16,6 +16,6 @@ def get_feedbacks(user: User, db: Session):
         created_at=user.created_at,
         updated_at=user.updated_at,
         is_deleted=user.is_deleted,
-        feedbacks=feedbacks
+        pronunciation_feedback=feedbacks
     )
     return user_with_feedback
