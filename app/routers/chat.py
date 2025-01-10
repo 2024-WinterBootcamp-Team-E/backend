@@ -19,7 +19,7 @@ def get_all_chatrooms(user_id: int, db: Session = Depends(get_db)):
     chatrooms = get_chatrooms(user_id=user_id, db=db)
     if not chatrooms:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
-    return {"all_chatroom": chatrooms}
+    return ResultResponseModel(code=200, message="모든 채팅방 조회 완료", data=chatrooms)
 @router.delete("/{user_id}/{chat_id}", summary="Chatroom 삭제", description="특정 user_id와 chat_id에 해당하는 채팅방을 삭제합니다.")
 def delete_chatroom(user_id: int, chat_id: int, db: Session = Depends(get_db)):
     user = get_user(user_id, db)
