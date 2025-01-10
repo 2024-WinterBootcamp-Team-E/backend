@@ -2,7 +2,6 @@ from sqlalchemy import Column, String, Text, DateTime, Integer
 from sqlalchemy.sql import func
 from app.database.session import Base
 from sqlalchemy.orm import relationship
-
 class Character(Base):
     __tablename__ = 'characters'
 
