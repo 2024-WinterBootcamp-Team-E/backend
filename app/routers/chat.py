@@ -1,10 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException,UploadFile
 from sqlalchemy.orm import Session
 from app.database.session import get_db
-from app.services.chat_service import delete_chat, get_chat, get_chatrooms
+from app.services import character_service
+from app.services.chat_service import delete_chat, get_chat, get_chatrooms, create_chatroom
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.user_service import get_user
-from app.schemas.chat import ChatResponse
+from app.schemas.chat import ChatResponse,ChatRoomCreateRequest
+from app.models.chat import Chat
+
+
+
 
 router = APIRouter(
     prefix="/chat",
@@ -42,4 +47,19 @@ def get_chatroom_detail(user_id: int, chat_id: int, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail="Chatroom not found")
     chat_response = ChatResponse.model_validate(chat)
     return ResultResponseModel(code=200, message="Chatroom retrieved successfully", data=chat_response)
+
+@router.post("/{user_id}/chat", summary="채팅방생성", description="새로운 채팅방을 생성합니다.")
+def chat_with_voice(req: ChatRoomCreateRequest,user_id: int, db: Session = Depends(get_db)):
+    user = get_user(user_id, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자 없음")
+    character = character_service.get_character_by_name(db, character_name=req.character_name)
+    if not character:
+        raise HTTPException(status_code=404, detail="캐릭터 정보를 찾을 수 없습니다.")
+    new_chat = create_chatroom(req, user_id, character.character_id, db)
+    return ResultResponseModel(code=200, message="채팅방생성완료", data=new_chat.chat_id)
+
+
+
+
 
