@@ -4,5 +4,7 @@ class CharacterResponse(BaseModel):
     character_id: int
     name: str
     description: str
-    created_at: datetime
-    modified_at: datetime
+    # created_at: datetime
+    # updated_at: datetime
+    class Config:
+        from_attributes = True

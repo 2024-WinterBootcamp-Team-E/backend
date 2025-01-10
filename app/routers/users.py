@@ -73,7 +73,7 @@ def update_existing_user(user_id: int, update_data: UserUpdate, db: Session = De
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다.")
     update_user(user, update_data, db)
-    return ResultResponseModel(code=200, message="사용자 정보 업데이트", data=None)
+    return ResultResponseModel(code=200, message="사용자 정보 업데이트 완료", data=None)
 
 
 @router.post("/save_audio_url")

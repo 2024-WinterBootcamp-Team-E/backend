@@ -21,4 +21,4 @@ class Sentence(Base):
     is_deleted = Column(Boolean, nullable=False, default=False)  # 필드 이름과 타입 수정
 
     # Relationships
-    feedbacks = relationship("Feedback", back_populates="sentence")
+    feedbacks = relationship("Feedback", back_populates="sentence", cascade="all, delete-orphan")

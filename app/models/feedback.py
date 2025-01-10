@@ -5,8 +5,8 @@ class Feedback(Base):
     __tablename__ = 'feedbacks'
 
     feedback_id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
-    sentence_id = Column(Integer, ForeignKey("sentences.sentence_id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    sentence_id = Column(Integer, ForeignKey("sentences.sentence_id", ondelete="CASCADE"), nullable=False)
     accuracy = Column(Float, nullable=True)
     content = Column(Text, nullable=True)
     pronunciation_feedback = Column(Text, nullable=True)

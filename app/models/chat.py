@@ -5,8 +5,8 @@ class Chat(Base):
     __tablename__ = 'chats'
 
     chat_id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
-    character_id = Column(Integer, ForeignKey("characters.character_id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    character_id = Column(Integer, ForeignKey("characters.character_id", ondelete="CASCADE"), nullable=False)
     score = Column(Integer, nullable=True)
     subject = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

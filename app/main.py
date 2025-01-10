@@ -3,6 +3,7 @@ from app.database.session import Base, engine
 from app.routers.api import router
 import app.models
 
+#Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
