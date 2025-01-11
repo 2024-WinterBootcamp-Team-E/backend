@@ -63,13 +63,9 @@ def get_pronunciation_results(user_id: int, sentence_id: int, db: Session = Depe
         raise HTTPException(status_code=404, detail="Sentence not found")
     # 응답 데이터 생성
     response_data = PronunciationResultResponse(
-        accuracy=feedback.accuracy,
-        feedback=feedback.pronunciation_feedback,
-        content=sentence.content
+        accuracy=float(feedback.accuracy),  # float로 변환
+        feedback=str(feedback.pronunciation_feedback),  # str로 변환
+        content=str(sentence.content)  # str로 변환
     )
-    '''
-    SQLAlchemy ORM 객체인 Feedback에서 accuracy 속성은
-    데이터베이스에서 실제 값을 가져오기 전에는 InstrumentedAttribute 타입으로 유지됩니다. 
-    즉, 워닝은 쿼리를 실행하지 않았거나, 객체가 적절히 로드되지 않았기 때문에 발생한 것
-    '''
+
     return ResultResponseModel(code=200, message="발음 테스트 결과 반환 성공", data=response_data)
