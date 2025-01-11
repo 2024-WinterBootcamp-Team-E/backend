@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException,UploadFile
 from sqlalchemy.orm import Session
+
+from app.config.openAI.openai_service import transcribe_audio
 from app.database.session import get_db
 from app.services import character_service, chat_service
 from app.services.chat_service import delete_chat, get_chat, get_chatrooms, create_chatroom
@@ -59,11 +61,25 @@ def chat_with_voice(req: ChatRoomCreateRequest,user_id: int, db: Session = Depen
     new_chat = create_chatroom(req, user_id, character.character_id, db)
     return ResultResponseModel(code=200, message="채팅방생성완료", data=new_chat.chat_id)
 
-@router.post("/{user_id}/{chat_id}",summary="대화생성", description="gpt와 대화를 생성합니다(stt 후 gpt와 대화).")
-async def create_bubble(chat_id: int,user_id:int,file: UploadFile, db: Session = Depends(get_db)):
-    chat_service.get_chat(user_id=user_id ,chat_id=chat_id,db=db)
+
+@router.post("/{user_id}/{chat_id}", summary="대화생성", description="gpt와 대화를 생성합니다(stt 후 gpt와 대화).")
+async def create_bubble(chat_id: int, user_id: int, file: UploadFile, db: Session = Depends(get_db)):
+    # 채팅방 유효성 확인
+    chat = chat_service.get_chat(user_id=user_id, chat_id=chat_id, db=db)
+    if not chat:
+        raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
+
     try:
-        response = chat_service.create_bubble_service(chat_id=chat_id, user_id=user_id, file=file, db=db)
+        # STT 변환
+        transcription = transcribe_audio(file)
+
+        # GPT 응답 생성 서비스 호출
+        response = chat_service.create_bubble_service(
+            chat_id=chat_id,
+            transcription=transcription,
+            db=db
+        )
+
         return {
             "message": "대화 생성 성공",
             "data": response
@@ -72,9 +88,3 @@ async def create_bubble(chat_id: int,user_id:int,file: UploadFile, db: Session =
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"대화 생성 중 오류 발생: {str(e)}")
-
-
-
-
-
-
