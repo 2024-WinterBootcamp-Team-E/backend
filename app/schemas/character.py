@@ -4,6 +4,7 @@ class CharacterResponse(BaseModel):
     character_id: int
     name: str
     description: str
+    image_url: str
     # created_at: datetime
     # updated_at: datetime
     class Config:
