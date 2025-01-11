@@ -21,3 +21,4 @@ starlette==0.41.3
 typing_extensions==4.12.2
 uvicorn==0.34.0
 python-multipart==0.0.6
+openai==0.28.0  # 추가된 부분

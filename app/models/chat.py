@@ -15,4 +15,5 @@ class Chat(Base):
 
     user = relationship("User", back_populates="chats")
     character = relationship("Character", back_populates="chats")
+    bubbles = relationship("Bubble", back_populates="chat")
 
