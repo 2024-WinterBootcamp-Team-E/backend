@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException,UploadFile
 from sqlalchemy.orm import Session
 from app.database.session import get_db
-from app.services import character_service
+from app.services import character_service, chat_service
 from app.services.chat_service import delete_chat, get_chat, get_chatrooms, create_chatroom
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.user_service import get_user
 from app.schemas.chat import ChatResponse,ChatRoomCreateRequest
-from app.models.chat import Chat
+
 
 
 
@@ -58,6 +58,21 @@ def chat_with_voice(req: ChatRoomCreateRequest,user_id: int, db: Session = Depen
         raise HTTPException(status_code=404, detail="캐릭터 정보를 찾을 수 없습니다.")
     new_chat = create_chatroom(req, user_id, character.character_id, db)
     return ResultResponseModel(code=200, message="채팅방생성완료", data=new_chat.chat_id)
+
+@router.post("/{user_id}/{chat_id}",summary="대화생성", description="gpt와 대화를 생성합니다(stt 후 gpt와 대화).")
+async def create_bubble(chat_id: int,user_id:int,file: UploadFile, db: Session = Depends(get_db)):
+    chat_service.get_chat(user_id=user_id ,chat_id=chat_id,db=db)
+    try:
+        response = chat_service.create_bubble_service(chat_id=chat_id, user_id=user_id, file=file, db=db)
+        return {
+            "message": "대화 생성 성공",
+            "data": response
+        }
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"대화 생성 중 오류 발생: {str(e)}")
+
 
 
 
