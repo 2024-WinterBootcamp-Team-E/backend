@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from fastapi import UploadFile
-from app.config.openAI.openai_service import transcribe_audio, get_gpt_response
+from app.config.openAI.openai_service import transcribe_audio, get_gpt_response_limited, \
+    get_grammar_feedback
 from app.models.chat import Chat
 from app.schemas.chat import ChatRoomCreateRequest
 from datetime import datetime
@@ -29,15 +30,9 @@ def create_chatroom(req: ChatRoomCreateRequest, user_id: int, character_id: int,
     db.refresh(new_chat)
     return new_chat
 
-def create_bubble_service(chat_id: int, transcription: str, db: Session):
-    # GPT 응답 생성
-    gpt_response = get_gpt_response(prompt=transcription, messages=[])
-
-    # 문법 피드백 생성
-    grammar_feedback = get_gpt_response(
-        prompt=f"Correct the grammar for the following sentence: '{transcription}'",
-        messages=[]
-    )
+def create_bubble_result(chat_id: int, transcription: str, db: Session):
+    gpt_response = get_gpt_response_limited(prompt=transcription, messages=[])
+    grammar_feedback = get_grammar_feedback(prompt=transcription, messages=[])
 
     # 사용자 입력 Bubble 생성
     user_bubble = Bubble(

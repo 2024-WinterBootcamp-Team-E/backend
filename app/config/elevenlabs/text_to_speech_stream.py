@@ -23,11 +23,3 @@ def text_to_speech_stream(text: str, voice_id: str = "Es5AnE58gKPS9Vffyooe") -> 
             audio_stream.write(chunk)
     audio_stream.seek(0)
     return audio_stream
-
-def save_audio_to_file(audio_stream: BytesIO, filename: str):
-    with open(filename, "wb") as file:
-        file.write(audio_stream.read())
-
-if __name__ == "__main__":
-    audio_stream = text_to_speech_stream("Hello, world!")
-    save_audio_to_file(audio_stream, "output.mp3")
