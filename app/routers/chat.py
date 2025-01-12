@@ -1,3 +1,5 @@
+from io import BytesIO
+
 from fastapi import APIRouter, Depends, HTTPException,UploadFile
 from sqlalchemy.orm import Session
 
@@ -68,22 +70,19 @@ async def create_bubble(chat_id: int, user_id: int, file: UploadFile, db: Sessio
     chat = chat_service.get_chat(user_id=user_id, chat_id=chat_id, db=db)
     if not chat:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
-
     try:
-        # STT 변환
         transcription = transcribe_audio(file)
-
-        # GPT 응답 생성 서비스 호출
-        response = chat_service.create_bubble_service(
+        tts_id = chat.characters.tts_id
+        response = chat_service.create_bubble_result(
             chat_id=chat_id,
             transcription=transcription,
-            db=db
+            db=db,
+            tts_id=tts_id
         )
 
-        return {
-            "message": "대화 생성 성공",
-            "data": response
-        }
+        audio_data = BytesIO(response["tts_audio"])
+        audio_data.seek(0)
+        return StreamingResponse(audio_data, media_type="audio/mpeg")
     except HTTPException as e:
         raise e
     except Exception as e:
