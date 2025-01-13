@@ -53,7 +53,7 @@ def get_chatroom_detail(user_id: int, chat_id: int, db: Session = Depends(get_db
     if not chat:
         raise HTTPException(status_code=404, detail="Chatroom not found")
     chat_response = ChatResponse.model_validate(chat)
-    chat_history = get_chat_history(chat_id)
+    chat_history = get_chat_history(chat_id, mdb)
     response_data = {
         "chat_info": chat_response,
         "chat_history": chat_history.get("messages", [])  # MongoDB에서 messages 배열만 추출
