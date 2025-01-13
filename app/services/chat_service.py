@@ -41,7 +41,7 @@ def create_chatroom(req: ChatRoomCreateRequest, user_id: int, character_id: int,
 def create_chatroom_mongo(chat, mdb:Database):
     mdb["chats"].insert_one({"chat_id": chat.chat_id, "messages":[]})
 
-def create_bubble_result(chat_id: int, transcription: str, mdb: Database, tts_id: str):
+def create_bubble_result(chat_id: int, transcription: str, mdb: Database):
     gpt_response = get_gpt_response_limited(prompt=transcription, messages=[])
     grammar_feedback = get_grammar_feedback(prompt=transcription, messages=[])
 
