@@ -1,9 +1,10 @@
-from io import BytesIO
+import base64
+
 from fastapi import APIRouter, Depends, HTTPException,UploadFile
 from sqlalchemy.orm import Session
 from pymongo.database import Database
-from starlette.responses import StreamingResponse
 
+from app.config.elevenlabs.text_to_speech_stream import text_to_speech_data
 from app.config.openAI.openai_service import transcribe_audio
 from app.database.session import get_db, get_mongo_db
 from app.services import character_service, chat_service
@@ -12,6 +13,7 @@ from app.services.chat_service import delete_chat, get_chat, get_chatrooms, crea
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.user_service import get_user
 from app.schemas.chat import ChatResponse,ChatRoomCreateRequest
+from fastapi.responses import StreamingResponse
 
 
 
@@ -73,31 +75,43 @@ def chat_with_voice(req: ChatRoomCreateRequest,user_id: int, db: Session = Depen
     return ResultResponseModel(code=200, message="채팅방생성완료", data=new_chat.chat_id)
 
 
-@router.post("/{user_id}/{chat_id}", summary="대화생성", description="gpt와 대화를 생성합니다(stt 후 gpt와 대화).")
-async def create_bubble(chat_id: int, user_id: int, file: UploadFile, db: Session = Depends(get_db), mdb: Database = Depends(get_mongo_db)):
+from fastapi.responses import StreamingResponse
+
+
+@router.post("/{user_id}/{chat_id}", summary="대화 생성", description="STT를 통해 GPT와 대화를 생성합니다.")
+async def create_bubble(
+        chat_id: int,
+        user_id: int,
+        file: UploadFile,
+        db: Session = Depends(get_db),
+        mdb: Database = Depends(get_mongo_db),
+):
     user = get_user(user_id, db)
     if not user:
         raise HTTPException(status_code=404, detail="사용자 없음")
+
     chat = get_chat(user_id=user_id, chat_id=chat_id, db=db)
     if not chat:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
 
     try:
         transcription = transcribe_audio(file)
-        tts_id = chat.character.tts_id
-        response = chat_service.create_bubble_result(
-            chat_id=chat_id,
-            transcription=transcription,
-            mdb=mdb,
-            tts_id=tts_id
-        )
+        tts_id = chat.character.tts_id  # 캐릭터 TTS ID 가져오기
+        response = chat_service.create_bubble_result(chat_id=chat_id, transcription=transcription, mdb=mdb)
+        print(f"response: {response}")
+        print(f"gpt_response: {response['gpt_response']}")
+        tts_audio = text_to_speech_data(text=response["gpt_response"], voice_id=tts_id)
+        tts_audio.seek(0)  # 데이터를 처음부터 읽도록 설정
 
-        # audio_data = BytesIO(response["tts_audio"])
-        # audio_data.seek(0)
-        # return StreamingResponse(audio_data, media_type="audio/mpeg")
+        # BytesIO 데이터를 Base64로 인코딩
+        tts_audio_base64 = base64.b64encode(tts_audio.getvalue()).decode("utf-8")
+
         return {
             "message": "대화 생성 성공",
-            "data": response
+            "data": {
+                "response": response,
+                "tts_audio": tts_audio_base64  # Base64 문자열로 반환
+            },
         }
     except HTTPException as e:
         raise e
