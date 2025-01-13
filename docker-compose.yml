@@ -6,9 +6,25 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-#    volumes:
-#      - ./app:/app
-    restart: always
+    environment:
+      - MONGODB_URL=mongodb://mongo:27017/winterboote  # MongoDB 연결 환경변수
+    networks:
+      - teamEnet
+    depends_on:
+      - mongo  # MongoDB 서비스가 시작된 후 FastAPI 시작
+
+  mongo:
+    container_name: mongo
+    image: mongo:latest  # 최신 MongoDB 이미지 사용
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/winterboote  # 데이터 영구 저장
+    networks:
+      - teamEnet
+
+volumes:
+  mongo_data:  # MongoDB 데이터가 저장될 볼륨 정의
 
 networks:
   teamEnet:

@@ -47,7 +47,7 @@ def get_grammar_feedback(prompt: str, messages: list) -> str:
     })
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=messages
         )
         return response["choices"][0]["message"]["content"]
