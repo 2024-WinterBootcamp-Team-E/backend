@@ -24,7 +24,7 @@ router = APIRouter(
     tags=["Chat"]
 )
 
-@router.get("/{user_id}", summary="모든 채팅방 조회", description="모든 채팅방 정보를 반환합니다.")
+@router.get("/{user_id}", summary="모든 전체 채팅방 조회", description="모든 채팅방 정보를 반환합니다.~~~~~")
 def get_all_chatrooms(user_id: int, db: Session = Depends(get_db)):
     user = get_user(user_id, db)
     if not user:
