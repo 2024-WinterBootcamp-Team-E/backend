@@ -12,7 +12,7 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 # ElevenLabs 클라이언트 초기화
 client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
 
-def text_to_speech_data(text: str, voice_id: str = "pFZP5JQG7iQjIQuC4Bku") -> BytesIO:
+def text_to_speech_data(text: str, voice_id: str) -> BytesIO:
     try:
         # ElevenLabs API 호출
         response = client.text_to_speech.convert(
@@ -28,8 +28,6 @@ def text_to_speech_data(text: str, voice_id: str = "pFZP5JQG7iQjIQuC4Bku") -> By
                 use_speaker_boost=True,
             ),
         )
-
-        # 음성 데이터를 BytesIO 스트림으로 변환
         audio_stream = BytesIO()
         for chunk in response:
             if chunk:

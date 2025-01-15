@@ -1,16 +1,24 @@
-from sqlalchemy.orm import Session
-from fastapi import UploadFile
-from app.config.openAI.openai_service import transcribe_audio, get_gpt_response_limited, \
-    get_grammar_feedback
-from app.models.chat import Chat
-from app.schemas.chat import ChatRoomCreateRequest
-from datetime import datetime
-from app.models.bubble import Bubble
-from pymongo.database import Database
-from fastapi import HTTPException
+from http.client import HTTPException
 
-def get_chatrooms(user_id: int, db: Session):
-    return db.query(Chat).filter(Chat.user_id == user_id).all()
+from sqlalchemy.orm import Session
+
+from app.config.constants import CHARACTER_TTS_MAP
+from app.config.openAI.openai_service import get_gpt_response_limited,get_grammar_feedback
+from app.models.chat import Chat
+from app.schemas.chat import ChatRoomCreateRequest, Chatroomresponse
+from datetime import datetime
+from pymongo.database import Database
+def get_chatrooms(user_id: int, db: Session, skip: int = 0, limit: int = 100):
+    chatrooms = db.query(Chat).filter(Chat.user_id == user_id).offset(skip).limit(limit).all()
+    return [
+        Chatroomresponse(
+            score=chatroom.score,
+            subject=chatroom.subject,
+            created_at=chatroom.created_at,
+            updated_at=chatroom.updated_at
+        )
+        for chatroom in chatrooms
+    ]
 
 def delete_chat(chat: Chat, mdb:Database, db: Session):
         db.delete(chat)
@@ -24,14 +32,17 @@ def get_chat(user_id: int, chat_id: int, db: Session):
 def get_chat_history(chat_id:int, mdb: Database):
     return mdb["chats"].find_one({"chat_id": chat_id})
 
-def create_chatroom(req: ChatRoomCreateRequest, user_id: int, character_id: int, db: Session):
+def create_chatroom(req: ChatRoomCreateRequest, user_id: int, db: Session):
+    tts_id = CHARACTER_TTS_MAP.get(req.character_name)
+    if not tts_id:
+        raise HTTPException(status_code=400, detail="유효하지 않은 캐릭터 이름입니다.")
     new_chat = Chat(
         user_id=user_id,
-        character_id=character_id,
         subject=req.subject,
+        character_name=req.character_name,
+        tts_id=tts_id,
         created_at=datetime.now(),
-        updated_at=datetime.now(),
-        is_deleted=False
+        updated_at=datetime.now()
     )
     db.add(new_chat)
     db.commit()
