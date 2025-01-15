@@ -69,7 +69,7 @@ def chat_with_voice(req: ChatRoomCreateRequest, user_id: int, db: Session = Depe
     if not tts_id:
         raise HTTPException(status_code=400, detail="유효하지 않은 캐릭터 이름입니다.")
 
-    new_chat = create_chatroom(req, user_id, tts_id, db)
+    new_chat = create_chatroom(req, user_id, db)
     create_chatroom_mongo(new_chat, mdb)
     return ResultResponseModel(code=200, message="채팅방 생성 완료", data=new_chat.chat_id)
 

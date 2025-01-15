@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request
 load_dotenv()
 
 DB_URL = os.getenv("DB_URL")
-engine = create_engine(DB_URL, echo=True)  # echo=True로 SQLAlchemy 쿼리 로그 출력
+engine = create_engine(DB_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -24,15 +24,14 @@ def get_db():
 
 MONGODB_URL = os.getenv("MONGODB_URL")
 
-# MongoDB Lifespan 관리
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # MongoDB 클라이언트 초기화
+
     print("MongoDB 클라이언트 초기화 중...")
     client = MongoClient(MONGODB_URL)
     try:
-        app.state.mongo_client = client  # 애플리케이션 상태에 저장
-        yield  # Lifespan 관리: 클라이언트가 앱 실행 동안 유지됨
+        app.state.mongo_client = client
+        yield
     finally:
         print("MongoDB 클라이언트 종료 중...")
         client.close()

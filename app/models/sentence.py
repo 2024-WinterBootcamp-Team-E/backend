@@ -13,8 +13,8 @@ class Sentence(Base):
     __tablename__ = 'sentences'
 
     sentence_id = Column(Integer, primary_key=True, autoincrement=True)
-    voice_url = Column(Text, nullable=False)
-    content = Column(String(100), nullable=False)
+    voice_url = Column(Text, nullable=True)
+    content = Column(Text, nullable=False)
     situation = Column(Enum(SituationType), nullable=False)  # Enum으로 변경
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
