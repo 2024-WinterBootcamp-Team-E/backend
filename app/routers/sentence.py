@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.services.speech_service import get_sentences_by_situation
 from app.database.session import get_db
 from app.services.speech_service import get_sentences_by_situation, get_sentence, get_pronunciation_feedback, \
     create_pronunciation_result, get_sentence_detail
@@ -9,11 +9,10 @@ from app.models.sentence import Sentence
 from app.models.feedback import Feedback
 from app.schemas.feedback import PronunciationResultResponse
 from app.schemas.ResultResponseModel import ResultResponseModel
-from fastapi import APIRouter
-from app.models.sentence import Sentence  # Sentence 모델 import
 
 
 
+# APIRouter 생성
 router = APIRouter(
     prefix="/speech",
     tags=["Speech"]
@@ -57,3 +56,19 @@ def get_pronunciation_results(user_id: int, sentence_id: int, db: Session = Depe
     return ResultResponseModel(code=200, message="발음 테스트 결과 반환 성공", data=response_data)
 
 
+
+
+# 발음 테스트 결과 반환 API
+@router.post("/{user_id}/results", summary="발음 테스트 결과 반환", description="특정 사용자의 발음 테스트 결과를 반환합니다.")
+def get_pronunciation_results(user_id: int, sentence_id: int, db: Session = Depends(get_db)):
+    # Feedback 데이터 조회
+    feedback = get_pronunciation_feedback(user_id, sentence_id, db)
+    if not feedback:
+        raise HTTPException(status_code=404, detail="Feedback not found for the given user and sentence")
+    # Sentence 데이터 조회
+    sentence = get_sentence(sentence_id, db)
+    if not sentence:
+        raise HTTPException(status_code=404, detail="Sentence not found")
+    # 응답 데이터 생성
+    response_data = create_pronunciation_result(feedback, sentence)
+    return ResultResponseModel(code=200, message="발음 테스트 결과 반환 성공", data=response_data)
