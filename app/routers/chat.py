@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException,UploadFile
 from sqlalchemy.orm import Session
 from pymongo.database import Database
 
+from app.config.elevenlabs.text_to_speech_stream import text_to_speech_data
 from app.config.constants import CHARACTER_TTS_MAP
 from app.config.elevenlabs.text_to_speech_stream import text_to_speech_data
 from app.config.openAI.openai_service import transcribe_audio
@@ -14,6 +15,7 @@ from app.services.chat_service import delete_chat, get_chat, get_chatrooms, crea
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.user_service import get_user
 from app.schemas.chat import ChatResponse,ChatRoomCreateRequest
+from fastapi.responses import StreamingResponse
 
 router = APIRouter(
     prefix="/chat",
@@ -80,7 +82,9 @@ async def create_bubble(chat_id: int,user_id: int, file: UploadFile, db: Session
     chat = get_chat(user_id=user_id, chat_id=chat_id, db=db)
     if not chat:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
+
     try:
+        # STT 변환
         transcription = transcribe_audio(file)
         tts_id = CHARACTER_TTS_MAP.get(chat.character_name)
         response = chat_service.create_bubble_result(chat_id=chat_id, transcription=transcription, mdb=mdb)

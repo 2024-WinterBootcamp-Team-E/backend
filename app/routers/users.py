@@ -1,12 +1,14 @@
+import asyncio
+
 from fastapi import status, APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from app.config.aws.s3Clent import upload_audio, upload_image
+from app.config.aws.s3Clent import  upload_image
 from app.database.session import get_db
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.schemas.user import UserUpdate, UserCreate, UserLogin
 from app.models.user import User
-from app.services.user_service import update_user, create_user_with_feedback
+from app.services.user_service import get_all_users,update_user, create_user_with_feedback
 from app.services.user_service import user_soft_delete, user_hard_delete, get_user, signup_user
 from datetime import datetime
 
@@ -33,6 +35,11 @@ def login(req: UserLogin, db: Session = Depends(get_db)):
     if authenticated_user.password != req.password:
         raise HTTPException(status_code=400, detail="잘못된 비밀번호입니다.")
     return ResultResponseModel(code=200, message="로그인 성공", data=authenticated_user.user_id)
+
+@router.get("/users")
+def read_users(db: Session = Depends(get_db)):
+    users = get_all_users(db)
+    return ResultResponseModel(code=200, message="모든 사용자 조회 성공", data=users)
 
 @router.get("/{user_id}", summary="특정 사용자 조회", response_model=ResultResponseModel)
 def get_only_user(user_id: int, db: Session = Depends(get_db)):
