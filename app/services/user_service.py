@@ -1,15 +1,24 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import status
+
+from app.models import Feedback
 from app.models.user import User
+
 from fastapi import HTTPException
-from app.schemas.user import UserUpdate, UserCreate
+from app.schemas.user import UserUpdate, UserCreate, UserWithFeedback
 from datetime import datetime
 from app.schemas.user import UserUpdate
 
-def get_all_users(db: Session):
-    return db.query(User).all()
-
+def create_user_with_feedback(user: User, db: Session) -> UserWithFeedback:
+    feedbacks = db.query(Feedback).filter(Feedback.user_id == user.user_id).all()
+    user_with_feedback = UserWithFeedback(
+        user_id=user.user_id,
+        email=user.email,
+        nickname=user.nickname,
+        feedbacks=feedbacks
+    )
+    return user_with_feedback
 def get_user(user_id : int, db: Session):
     return db.get(User, user_id)
 

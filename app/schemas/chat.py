@@ -18,3 +18,12 @@ class ChatResponse(BaseModel):
 class ChatRoomCreateRequest(BaseModel):
     character_name: str
     subject: str
+
+class Chatroomresponse(BaseModel):
+    score: int
+    subject: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
