@@ -1,7 +1,9 @@
+import asyncio
+
 from fastapi import status, APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from app.config.aws.s3Clent import upload_audio
+from app.config.aws.s3Clent import upload_audio, upload_image
 from app.database.session import get_db
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.feedback_service import get_feedbacks
@@ -39,7 +41,7 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 @router.get("/users")
 def read_users(db: Session = Depends(get_db)):
     users = get_all_users(db)
-    return {"users": users}
+    return ResultResponseModel(code=200, message="모든 사용자 조회 성공", data=users)
 
 @router.get("/{user_id}", summary="특정 사용자 조회", response_model=ResultResponseModel)
 def get_only_user(user_id: int, db: Session = Depends(get_db)):
@@ -90,6 +92,24 @@ async def save_audio_url(file: UploadFile, situation: str, sentence_id: int, db:
         sentence.voice_url = file_url
         db.commit()
         return {"message": "성공적으로 저장되었습니다.", "voice_url": file_url}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"데이터베이스 업데이트 실패: {str(e)}")
+
+@router.post("/{user_id}/image", summary="사용자 프로필 이미지 업로드", description="사용자의 프로필 이미지를 업로드합니다.")
+def profile_image_upload(file: UploadFile, user_id: int, db: Session = Depends(get_db)):
+    # S3에 파일 업로드 및 URL 반환
+    file_url = asyncio.run(upload_image(file, "image"))
+    try:
+        # DB에서 해당 user_id 조회
+        user = db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="해당 user_id가 없습니다.")
+
+        # image_url 업데이트
+        user.user_image = file_url
+        db.commit()
+        return {"message": "이미지 성공적으로 저장되었습니다.", "image_url": file_url}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"데이터베이스 업데이트 실패: {str(e)}")

@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, HttpUrl
 from datetime import datetime
 from app.schemas.feedback import Feedback
 class UserWithFeedback(BaseModel):
