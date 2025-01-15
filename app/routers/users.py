@@ -1,5 +1,3 @@
-import asyncio
-
 from fastapi import status, APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -35,11 +33,6 @@ def login(req: UserLogin, db: Session = Depends(get_db)):
     if authenticated_user.password != req.password:
         raise HTTPException(status_code=400, detail="잘못된 비밀번호입니다.")
     return ResultResponseModel(code=200, message="로그인 성공", data=authenticated_user.user_id)
-
-@router.get("/users")
-def read_users(db: Session = Depends(get_db)):
-    users = get_all_users(db)
-    return ResultResponseModel(code=200, message="모든 사용자 조회 성공", data=users)
 
 @router.get("/{user_id}", summary="특정 사용자 조회", response_model=ResultResponseModel)
 def get_only_user(user_id: int, db: Session = Depends(get_db)):
