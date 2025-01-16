@@ -17,7 +17,7 @@ services:
     container_name: mongo
     image: mongo:latest  # 최신 MongoDB 이미지 사용
     ports:
-      - "27017:27017"
+      - "27018:27017"
     volumes:
       - mongo_data:/data/winterboote  # 데이터 영구 저장
     networks:

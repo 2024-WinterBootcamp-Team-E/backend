@@ -9,7 +9,7 @@ class Chat(Base):
     score = Column(Integer, nullable=True)
     subject = Column(String(255), nullable=True)
     character_name = Column(String(50), nullable=True)
-    tts_id = Column(Text, nullable=True)  # TTS ID
+    tts_id = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)

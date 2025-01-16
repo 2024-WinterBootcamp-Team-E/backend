@@ -1,8 +1,6 @@
 from http.client import HTTPException
-
 from fastapi import Depends
 from sqlalchemy.orm import Session
-
 from app.config.constants import CHARACTER_TTS_MAP
 from app.config.openAI.openai_service import get_gpt_response_limited,get_grammar_feedback
 from app.database.session import get_mongo_db
@@ -14,8 +12,12 @@ def get_chatrooms(user_id: int, db: Session, skip: int = 0, limit: int = 100):
     chatrooms = db.query(Chat).filter(Chat.user_id == user_id).offset(skip).limit(limit).all()
     return [
         Chatroomresponse(
+            chat_id=chatroom.chat_id,
+            user_id=chatroom.user_id,
             score=chatroom.score,
             subject=chatroom.subject,
+            character_name=chatroom.character_name,
+            tts_id=chatroom.tts_id,
             created_at=chatroom.created_at,
             updated_at=chatroom.updated_at
         )
@@ -26,7 +28,7 @@ def delete_chat(chat: Chat, mdb:Database, db: Session):
         db.delete(chat)
         db.commit()
         mdb["chats"].delete_one(
-            {"chat_id": Chat.chat_id}  # 조건: chat_id가 일치하는 문서
+            {"chat_id": chat.chat_id}  # 조건: chat_id가 일치하는 문서
         )
 def get_chat(user_id: int, chat_id: int, db: Session):
     return db.query(Chat).filter_by(user_id=user_id, chat_id=chat_id).first()

@@ -1,6 +1,5 @@
 from pydantic import BaseModel
 from app.schemas.sentence import Sentence
-from datetime import datetime
 
 class Feedback(BaseModel):
     feedback_id: int

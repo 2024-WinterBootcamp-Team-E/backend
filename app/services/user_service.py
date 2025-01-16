@@ -1,14 +1,10 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import status
-
 from app.models import Feedback
 from app.models.user import User
-
 from fastapi import HTTPException
-from app.schemas.user import UserUpdate, UserCreate, UserWithFeedback
-from datetime import datetime
-from app.schemas.user import UserUpdate
+from app.schemas.user import UserUpdate, UserWithFeedback
 
 def get_all_users(db: Session):
     return db.query(User).all()
@@ -31,7 +27,7 @@ def user_soft_delete(user: User, db: Session):
     db.refresh(user)
 
 def user_hard_delete(user: User, db: Session):
-    db.delete(user)
+    db.query(User).filter(User.user_id == user.user_id).delete()
     db.commit()
 
 def update_user(user: User, update_data: UserUpdate, db: Session):
