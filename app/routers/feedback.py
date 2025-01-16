@@ -7,6 +7,7 @@ from app.services.feedback_service import get_value, get_avg_score
 from app.models.sentence import Sentence
 from app.config.openAI.openai_service import get_pronunciation_feedback
 from app.models.feedback import Feedback
+from app.services.user_service import get_user
 
 router = APIRouter(
     prefix="/feedback",
@@ -81,4 +82,7 @@ async def analyze_pronunciation_endpoint(
 @router.get("/{user_id}/{sentence_id}/score", summary="최근 발음 평가 결과 평균 점수 조회", description="특정 사용자의 최근 발음 평가 평균 점수 결과 조회")
 def get_user_avg_score(user_id: int, db: Session = Depends(get_db)):
     feedbacks_score = get_avg_score(user_id, db)
+    user = get_user(user_id, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     return ResultResponseModel(code=200, message="상황 문장 목록 조회 성공", data=feedbacks_score)
