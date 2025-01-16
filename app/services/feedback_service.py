@@ -1,5 +1,4 @@
 from typing import Optional, Dict
-
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session, joinedload
 from app.models.feedback import Feedback
@@ -27,7 +26,7 @@ def get_feedbacks(user: User, db: Session):
 async def create_feedback_from_azure_response(
     user_id: int,
     sentence_id: int,
-    azure_response: str, # str로 변경해야됨
+    azure_response: str,
     db: Session
 ):
     feedback = Feedback(

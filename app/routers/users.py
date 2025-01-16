@@ -43,7 +43,7 @@ def get_only_user(user_id: int, db: Session = Depends(get_db)):
     return ResultResponseModel(code=200, message="특정 사용자 조회 성공", data=user_with_feedback)
 
 
-@router.delete("/soft/{user_id}", summary="soft delete로 삭제합니다.", description="is_deleted 애트리뷰트를 true로 변환")
+@router.put("/soft/{user_id}", summary="soft delete로 삭제합니다.", description="is_deleted 애트리뷰트를 true로 변환")
 def delete_user(user_id : int, db: Session = Depends(get_db)):
     user = get_user(user_id, db)
     if user is None:
@@ -76,7 +76,7 @@ async def profile_image_upload(file: UploadFile, user_id: int, db: Session = Dep
             raise HTTPException(status_code=404, detail="해당 user_id가 없습니다.")
         user.user_image = file_url
         db.commit()
-        return {"message": "이미지 성공적으로 저장되었습니다.", "image_url": file_url}
+        return ResultResponseModel(code=200, message="이미지 성공적으로 저장되었습니다.", data=file_url)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"데이터베이스 업데이트 실패: {str(e)}")

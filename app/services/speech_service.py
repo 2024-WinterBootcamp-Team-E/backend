@@ -40,9 +40,9 @@ def get_sentence(sentence_id: int, db: Session):
 
 def create_pronunciation_result(feedback: Feedback, sentence: Sentence):
     response_data = PronunciationResultResponse(
-        accuracy=float(feedback.accuracy),  # float로 변환
-        feedback=str(feedback.pronunciation_feedback),  # str로 변환
-        content=str(sentence.content)  # str로 변환
+        accuracy=float(feedback.accuracy),
+        feedback=str(feedback.pronunciation_feedback),
+        content=str(sentence.content)
     )
     return response_data
 

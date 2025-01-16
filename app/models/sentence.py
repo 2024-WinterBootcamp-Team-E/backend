@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, func, Boolean, Enum,Text
+from sqlalchemy import Column, Integer, DateTime, func, Boolean, Enum,Text
 from sqlalchemy.orm import relationship
 from app.database.session import Base
 import enum
@@ -13,12 +13,11 @@ class Sentence(Base):
     __tablename__ = 'sentences'
 
     sentence_id = Column(Integer, primary_key=True, autoincrement=True)
-    voice_url = Column(Text, nullable=True)
+    voice_url = Column(Text, nullable=False)
     content = Column(Text, nullable=False)
-    situation = Column(Enum(SituationType), nullable=False)  # Enum으로 변경
+    situation = Column(Enum(SituationType), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
-    is_deleted = Column(Boolean, nullable=False, default=False)  # 필드 이름과 타입 수정
+    is_deleted = Column(Boolean, nullable=False, default=False)
 
-    # Relationships
     feedbacks = relationship("Feedback", back_populates="sentence", cascade="all, delete-orphan")

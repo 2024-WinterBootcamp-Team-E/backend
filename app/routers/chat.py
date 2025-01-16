@@ -1,21 +1,17 @@
 import base64
-
 from fastapi import APIRouter, Depends, HTTPException,UploadFile
 from sqlalchemy.orm import Session
 from pymongo.database import Database
-
-from app.config.elevenlabs.text_to_speech_stream import text_to_speech_data
-from app.config.constants import CHARACTER_TTS_MAP
 from app.config.constants import CHARACTER_TTS_MAP
 from app.config.elevenlabs.text_to_speech_stream import text_to_speech_data
 from app.config.openAI.openai_service import transcribe_audio
 from app.database.session import get_db, get_mongo_db
-from app.services import character_service, chat_service
+from app.services import chat_service
 from app.services.chat_service import delete_chat, get_chat, get_chatrooms, create_chatroom, create_chatroom_mongo, \
     get_chat_history
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.user_service import get_user
-from app.schemas.chat import ChatResponse,ChatRoomCreateRequest
+from app.schemas.chat import Chatroomresponse,ChatRoomCreateRequest
 
 router = APIRouter(
     prefix="/chat",
@@ -51,7 +47,7 @@ def get_chatroom_detail(user_id: int, chat_id: int, db: Session = Depends(get_db
     chat = get_chat(user_id=user_id, chat_id=chat_id, db=db)
     if not chat:
         raise HTTPException(status_code=404, detail="Chatroom not found")
-    chat_response = ChatResponse.model_validate(chat)
+    chat_response = Chatroomresponse.model_validate(chat)
     chat_history = get_chat_history(chat_id, mdb)
     response_data = {
         "chat_info": chat_response,
@@ -93,13 +89,14 @@ async def create_bubble(chat_id: int,user_id: int, file: UploadFile, db: Session
 
         tts_audio_base64 = base64.b64encode(tts_audio.getvalue()).decode("utf-8")
 
-        return {
-            "message": "대화 생성 성공",
-            "data": {
+        return ResultResponseModel(
+            code=200,
+            message="대화 생성 성공",
+            data={
                 "response": response,
                 "tts_audio": tts_audio_base64  # Base64 문자열로 반환
-            },
-        }
+            }
+        )
     except HTTPException as e:
         raise e
     except Exception as e:

@@ -54,6 +54,7 @@ async def analyze_pronunciation_endpoint(
         gpt_result = await get_pronunciation_feedback(azure_result)
         feedback_entry = db.query(Feedback).filter_by(user_id=user_id, sentence_id=sentence_id).first()
         if not feedback_entry:
+            # 기존 항목이 없으면 새로 생성
             feedback_entry = Feedback(user_id=user_id, sentence_id=sentence_id)
             db.add(feedback_entry)
         feedback_entry.accuracy_score = scores["AccuracyScore"]
@@ -63,10 +64,14 @@ async def analyze_pronunciation_endpoint(
         feedback_entry.pronunciation_feedback = gpt_result
         db.commit()
 
-        return {
-            "sentence_content": text,
-            "gpt_result": gpt_result,
-        }
+        return ResultResponseModel(
+            code=200,
+            message="발음 분석 성공",
+            data={
+                "sentence_content": text,
+                "gpt_result": gpt_result,
+            }
+        )
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

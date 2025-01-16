@@ -6,6 +6,10 @@ from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from fastapi import FastAPI, Request
+import logging
+
+logging.basicConfig()
+logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
 
 load_dotenv()
 

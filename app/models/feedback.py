@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, DateTime, Float, ForeignKey, Text, func, Boolean
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, Text, func, Boolean, Float
 from sqlalchemy.orm import relationship
 from app.database.session import Base
 class Feedback(Base):
