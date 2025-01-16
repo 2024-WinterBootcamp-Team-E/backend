@@ -1,9 +1,11 @@
 from http.client import HTTPException
 
+from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.config.constants import CHARACTER_TTS_MAP
 from app.config.openAI.openai_service import get_gpt_response_limited,get_grammar_feedback
+from app.database.session import get_mongo_db
 from app.models.chat import Chat
 from app.schemas.chat import ChatRoomCreateRequest, Chatroomresponse
 from datetime import datetime
@@ -52,8 +54,8 @@ def create_chatroom(req: ChatRoomCreateRequest, user_id: int, db: Session):
 def create_chatroom_mongo(chat, mdb:Database):
     mdb["chats"].insert_one({"chat_id": chat.chat_id, "messages":[]})
 
-def create_bubble_result(chat_id: int, transcription: str, mdb: Database):
-    gpt_response = get_gpt_response_limited(prompt=transcription, messages=[])
+def create_bubble_result(chat_id: int, transcription: str, mdb: Database = Depends(get_mongo_db) ):
+    gpt_response = get_gpt_response_limited(chat_id=chat_id, prompt=transcription, messages=[], mdb=mdb)
     grammar_feedback = get_grammar_feedback(prompt=transcription, messages=[])
 
     # 사용자 입력 Bubble 생성

@@ -1,10 +1,10 @@
 import io
 import openai
-from fastapi import HTTPException,UploadFile
+from fastapi import HTTPException, UploadFile, Depends
 from dotenv import load_dotenv
-
 import os
-
+from pymongo.database import Database
+from app.database.session import get_mongo_db
 
 load_dotenv()
 
@@ -31,7 +31,17 @@ def transcribe_audio(file: UploadFile) -> str:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"STT 변환 실패: {str(e)}")
 
-def get_gpt_response_limited(prompt: str, messages: list) -> str:
+def get_gpt_response_limited(chat_id: int, prompt: str, messages: list, mdb) -> str:
+    collection = mdb["chats"]  # 'chats' 콜렉션으로 변경
+    result = collection.find_one({"chat_id": chat_id}, {"messages": {"$slice": -6}})
+
+    if result and "messages" in result and result["messages"]:
+        for message in result["messages"]:
+            if isinstance(message, dict):  # 데이터 검증
+                messages.append({
+                    "role": message.get("role", "user"),
+                    "content": message.get("content", "")
+                })
     messages.append({
         "role": "user",
         "content": "Assume the user is speaking English.\n"

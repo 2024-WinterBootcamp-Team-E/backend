@@ -6,7 +6,7 @@ from app.database.session import get_db
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.schemas.user import UserUpdate, UserCreate, UserLogin
 from app.models.user import User
-from app.services.user_service import get_all_users,update_user, create_user_with_feedback
+from app.services.user_service import update_user, create_user_with_feedback
 from app.services.user_service import user_soft_delete, user_hard_delete, get_user, signup_user
 from datetime import datetime
 
