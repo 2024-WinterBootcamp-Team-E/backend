@@ -10,6 +10,9 @@ from app.schemas.user import UserUpdate, UserCreate, UserWithFeedback
 from datetime import datetime
 from app.schemas.user import UserUpdate
 
+def get_all_users(db: Session):
+    return db.query(User).all()
+
 def create_user_with_feedback(user: User, db: Session) -> UserWithFeedback:
     feedbacks = db.query(Feedback).filter(Feedback.user_id == user.user_id).all()
     user_with_feedback = UserWithFeedback(

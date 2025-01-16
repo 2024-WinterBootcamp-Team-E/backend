@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.feedback import Feedback
 from app.schemas.user import UserWithFeedback
 from app.models.user import User
+import json
 from app.config.azure.pronunciation_feedback import analyze_pronunciation_with_azure
 from fastapi import HTTPException
 from app.config.openAI.openai_service import get_pronunciation_feedback
@@ -35,9 +36,25 @@ async def create_feedback_from_azure_response(
             f"Fluency: {azure_response.get('fluency_score', 'N/A')}, "
             f"Completeness: {azure_response.get('completeness_score', 'N/A')}, "
             f"Pronunciation: {azure_response.get('pronunciation_score', 'N/A')}"
+            f""
         ),
     )
     db.add(feedback)
     db.commit()
     db.refresh(feedback)
-    return feedback
+
+
+def get_value(key, json_string):
+    try:
+        json_data = json.loads(json_string)  # JSON 변환
+        pronunciation_assessment = json_data.get("NBest", [{}])[0].get("PronunciationAssessment", {})
+        value = pronunciation_assessment.get(key)
+        if value is None:
+            raise ValueError(f"키 {key}를 찾을 수 없습니다.")
+        return float(value)  # 값을 실수로 변환
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] JSON decoding failed: {e}")
+        raise ValueError("JsonResult가 올바른 JSON 형식이 아닙니다.")
+    except ValueError as e:
+        print(f"[ERROR] {e}")
+        raise
