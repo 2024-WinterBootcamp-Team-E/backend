@@ -29,6 +29,6 @@ elevenlabs==1.50.3
 pymongo==4.10.1
 openai==0.28.0
 elevenlabs==1.50.3
-prometheus-fastapi-instrumentator==7.0.2
+#prometheus-fastapi-instrumentator==7.0.2
 
 
