@@ -1,14 +1,15 @@
 import base64
+import json
+
 from fastapi import APIRouter, Depends, HTTPException,UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pymongo.database import Database
 from app.config.constants import CHARACTER_TTS_MAP
 from app.config.elevenlabs.text_to_speech_stream import text_to_speech_data
 from app.config.openAI.openai_service import transcribe_audio
 from app.database.session import get_db, get_mongo_db
-from app.services import chat_service
-from app.services.chat_service import delete_chat, get_chat, get_chatrooms, create_chatroom, create_chatroom_mongo, \
-    get_chat_history
+from app.services.chat_service import delete_chat, get_chat, get_chatrooms, create_chatroom, create_chatroom_mongo,get_chat_history, create_bubble_result
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.user_service import get_user
 from app.schemas.chat import Chatroomresponse,ChatRoomCreateRequest
@@ -70,8 +71,8 @@ def chat_with_voice(req: ChatRoomCreateRequest, user_id: int, db: Session = Depe
     return ResultResponseModel(code=200, message="채팅방 생성 완료", data=new_chat.chat_id)
 
 
-@router.post("/{user_id}/{chat_id}", summary="대화 생성", description="STT를 통해 GPT와 대화를 생성합니다.")
-async def create_bubble(chat_id: int,user_id: int, file: UploadFile, db: Session = Depends(get_db), mdb: Database = Depends(get_mongo_db)):
+@router.post("/{user_id}/{chat_id}", summary="대화 생성", description="STT를 통해 GPT와 대화를 생성합니다.",response_class=StreamingResponse)
+async def create_bubble(chat_id: int,user_id: int, file: UploadFile, db: Session = Depends(get_db), mdb: Database = Depends(get_mongo_db)): ##여러명이 동시에 처리가능 uvcon
     user = get_user(user_id, db)
     if not user:
         raise HTTPException(status_code=404, detail="사용자 없음")
@@ -79,25 +80,32 @@ async def create_bubble(chat_id: int,user_id: int, file: UploadFile, db: Session
     chat = get_chat(user_id=user_id, chat_id=chat_id, db=db)
     if not chat:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
+    async def event_generator(): #함수 안에서는 비동기 처리가 안됌 anyio
+        try:
+            file.file.seek(0)
+            transcription = transcribe_audio(file)
+            yield f"data: {json.dumps({'step': 'transcription', 'content': transcription})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'step': 'error', 'message': f'STT 변환 실패: {str(e)}'})}\n\n"
+            return
 
-    try:
-        transcription = transcribe_audio(file)
-        tts_id = CHARACTER_TTS_MAP.get(chat.character_name)
-        response = chat_service.create_bubble_result(chat_id=chat_id, transcription=transcription, mdb=mdb)
-        tts_audio = text_to_speech_data(text=response["gpt_response"], voice_id=tts_id)
-        tts_audio.seek(0)
+        try:
+            response = create_bubble_result(chat_id=chat_id, transcription=transcription, mdb=mdb)
+            gpt_response = response["gpt_response"]
+            grammar_feedback = response["grammar_feedback"]
+            yield f"data: {json.dumps({'step': 'gpt_response', 'content': gpt_response})}\n\n"
+            yield f"data: {json.dumps({'step': 'grammar_feedback', 'content': grammar_feedback})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'step': 'error', 'message': f'GPT 응답 또는 문법 피드백 생성 실패: {str(e)}'})}\n\n"
+            return
 
-        tts_audio_base64 = base64.b64encode(tts_audio.getvalue()).decode("utf-8")
+        try:
+            tts_id = CHARACTER_TTS_MAP.get(chat.character_name)
+            tts_audio = text_to_speech_data(text=gpt_response, voice_id=tts_id)
+            tts_audio.seek(0)
+            tts_audio_base64 = base64.b64encode(tts_audio.getvalue()).decode("utf-8")
+            yield f"data: {json.dumps({'step': 'tts_audio', 'content': tts_audio_base64})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'step': 'error', 'message': f'TTS 변환 실패: {str(e)}'})}\n\n"
 
-        return ResultResponseModel(
-            code=200,
-            message="대화 생성 성공",
-            data={
-                "response": response,
-                "tts_audio": tts_audio_base64  # Base64 문자열로 반환
-            }
-        )
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"대화 생성 중 오류 발생: {str(e)}")
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

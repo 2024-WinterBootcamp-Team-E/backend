@@ -1,10 +1,8 @@
 import io
 import openai
-from fastapi import HTTPException, UploadFile, Depends
+from fastapi import HTTPException, UploadFile
 from dotenv import load_dotenv
 import os
-from pymongo.database import Database
-from app.database.session import get_mongo_db
 
 load_dotenv()
 
@@ -13,20 +11,18 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def transcribe_audio(file: UploadFile) -> str:
     try:
-        # 파일 포인터를 처음으로 리셋
+        # Reset file pointer before reading
         file.file.seek(0)
 
-        # SpooledTemporaryFile을 BytesIO로 변환
+        # Read file content into BytesIO
         file_content = io.BytesIO(file.file.read())
-        file_content.name = file.filename  # 파일 이름 설정 (필수)
+        file_content.name = file.filename  # Set filename for Whisper API
 
-        # Whisper API 호출
+        # Call Whisper API
         response = openai.Audio.transcribe(
             model="whisper-1",
-            file=file_content  # BytesIO 객체 전달
+            file=file_content  # Pass BytesIO object
         )
-
-        # 변환된 텍스트 반환
         return response["text"]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"STT 변환 실패: {str(e)}")
@@ -49,7 +45,7 @@ def get_gpt_response_limited(chat_id: int, prompt: str, messages: list, mdb) -> 
     })
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=messages
         )
         return response["choices"][0]["message"]["content"]
@@ -67,7 +63,7 @@ def get_grammar_feedback(prompt: str, messages: list) -> str:
     })
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=messages
         )
         return response["choices"][0]["message"]["content"]
@@ -97,7 +93,7 @@ async def get_pronunciation_feedback(azure_response: dict) -> str:
 
     try:
         response = await openai.ChatCompletion.acreate(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=messages
         )
         return response["choices"][0]["message"]["content"]
