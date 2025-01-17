@@ -3,8 +3,10 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import status
 from app.models import Feedback
 from app.models.user import User
+from app.models.chat import Chat
 from fastapi import HTTPException
 from app.schemas.user import UserUpdate, UserWithFeedback
+from datetime import datetime, timedelta
 
 def get_all_users(db: Session):
     return db.query(User).all()
@@ -55,3 +57,38 @@ def signup_user(user: User, db: Session) -> User:
     db.refresh(user)
     return user
 
+def calculate_attendance(db: Session, user_id: int):
+    today = datetime.utcnow().date()
+    attendance_list = []
+
+    for day_offset in range(30):
+        date_to_check = today - timedelta(days=day_offset)
+        start_time = datetime(date_to_check.year, date_to_check.month, date_to_check.day)
+        end_time = start_time + timedelta(days=1)
+
+        chats_activity = db.query(Chat).filter(
+            Chat.user_id == user_id,
+            (
+                (Chat.created_at >= start_time) & (Chat.created_at < end_time) |
+                (Chat.updated_at >= start_time) & (Chat.updated_at < end_time)
+            ),
+            Chat.is_deleted == False
+        ).count()
+
+        feedbacks_activity = db.query(Feedback).filter(
+            Feedback.user_id == user_id,
+            (
+                (Feedback.created_at >= start_time) & (Feedback.created_at < end_time) |
+                (Feedback.updated_at >= start_time) & (Feedback.updated_at < end_time)
+            ),
+            Feedback.is_deleted == False
+        ).count()
+
+        if chats_activity > 0 and feedbacks_activity > 0:
+            attendance_list.append(2)
+        elif chats_activity > 0 or feedbacks_activity > 0:
+            attendance_list.append(1)
+        else:
+            attendance_list.append(0)
+
+    return list(reversed(attendance_list))
