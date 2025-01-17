@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, HTTPException
 from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.config.azure.pronunciation_feedback import analyze_pronunciation_with_azure
-from app.services.feedback_service import get_value
+from app.services.feedback_service import get_value, extract_weak_pronunciations
 from app.models.sentence import Sentence
 from app.config.openAI.openai_service import get_pronunciation_feedback
 from app.models.feedback import Feedback
@@ -49,6 +49,12 @@ async def analyze_pronunciation_endpoint(
                 print(f"[ERROR] {e}")
                 raise HTTPException(status_code=400, detail=f"키 {key}를 찾을 수 없습니다.")
 
+        weak_pronunciations = extract_weak_pronunciations(azure_result)
+        print(f"[LOG] Weak Pronunciations:")
+        for weak in weak_pronunciations:
+            print(f"Syllable: {weak['syllable']}")
+
+
         gpt_result = await get_pronunciation_feedback(azure_result)
         feedback_entry = db.query(Feedback).filter_by(user_id=user_id, sentence_id=sentence_id).first()
         if not feedback_entry:
@@ -64,6 +70,7 @@ async def analyze_pronunciation_endpoint(
         return {
             "sentence_content": text,
             "gpt_result": gpt_result,
+            "weak_pronunciations": weak_pronunciations
         }
 
     except ValueError as e:

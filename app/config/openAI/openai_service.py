@@ -97,7 +97,7 @@ async def get_pronunciation_feedback(azure_response: dict) -> str:
 
     try:
         response = await openai.ChatCompletion.acreate(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=messages
         )
         return response["choices"][0]["message"]["content"]
