@@ -6,7 +6,7 @@ from app.database.session import get_db
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.schemas.user import UserUpdate, UserCreate, UserLogin
 from app.models.user import User
-from app.services.user_service import update_user, create_user_with_feedback
+from app.services.user_service import update_user, create_user_with_feedback, calculate_attendance
 from app.services.user_service import user_soft_delete, user_hard_delete, get_user, signup_user
 from datetime import datetime
 
@@ -80,3 +80,14 @@ async def profile_image_upload(file: UploadFile, user_id: int, db: Session = Dep
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"데이터베이스 업데이트 실패: {str(e)}")
+
+@router.get("/attendance/{user_id}")
+def get_recent_attendance(user_id: int, db: Session = Depends(get_db)):
+    user = get_user(user_id, db)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    attendance_status_list = calculate_attendance(db, user_id)
+    return {
+        "user_id": user_id,
+        "attendance_status": attendance_status_list
+    }
