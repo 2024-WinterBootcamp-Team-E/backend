@@ -1,3 +1,5 @@
+#version: '3.8'
+
 services:
   fastapi-server:
     container_name: fastapi
@@ -7,24 +9,58 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - MONGODB_URL=mongodb://mongo:27017/winterboote  # MongoDB 연결 환경변수
+      - MONGODB_URL=mongodb://mongo:27017/winterboote
     networks:
       - teamEnet
     depends_on:
-      - mongo  # MongoDB 서비스가 시작된 후 FastAPI 시작
+      - mongo
 
   mongo:
     container_name: mongo
-    image: mongo:latest  # 최신 MongoDB 이미지 사용
+    image: mongo:latest
     ports:
       - "27017:27017"
     volumes:
-      - mongo_data:/data/winterboote  # 데이터 영구 저장
+      - mongo_data:/data/winterboote
     networks:
       - teamEnet
 
+#  cadvisor:
+#    image: gcr.io/cadvisor/cadvisor:latest
+#    container_name: cadvisor
+#    ports:
+#      - "8080:8080"
+#    volumes:
+#      - /:/rootfs:ro
+#      - /var/run:/var/run:ro
+#      - /sys:/sys:ro
+#      - /var/lib/docker/:/var/lib/docker:ro
+#    privileged: true
+#    networks:
+#      - teamEnet
+
+#  prometheus:
+#    image: prom/prometheus:latest
+#    container_name: prometheus
+#    ports:
+#      - "9090:9090"
+#    volumes:
+#      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+#    networks:
+#      - teamEnet
+
+#  grafana:
+#    image: grafana/grafana:latest
+#    container_name: grafana
+#    ports:
+#      - "3000:3000"
+#    networks:
+#      - teamEnet
+#    depends_on:
+#      - prometheus
+
 volumes:
-  mongo_data:  # MongoDB 데이터가 저장될 볼륨 정의
+  mongo_data:
 
 networks:
   teamEnet:
