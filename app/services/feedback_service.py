@@ -1,5 +1,5 @@
 from typing import Optional, Dict
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, cast, Date
 from sqlalchemy.orm import Session, joinedload
 from app.models.feedback import Feedback
 from app.schemas.user import UserWithFeedback
@@ -63,27 +63,43 @@ def get_value(key, json_string):
     return feedback
 
 def get_avg_score(user_id: int, db: Session) -> Dict[str, Optional[float]]:
-    # 서브쿼리를 사용하여 최신 10개의 피드백을 가져옵니다.
-    latest_feedbacks_subquery = (
-        db.query(Feedback)
+    # 피드백을 날짜별로 그룹화하기 위해 updated_at을 날짜로 변환
+    daily_feedbacks = (
+        db.query(
+            cast(Feedback.updated_at, Date).label('date'),
+            Feedback.accuracy_score,
+            Feedback.fluency_score,
+            Feedback.completeness_score,
+            Feedback.pron_score
+        )
         .filter(Feedback.user_id == user_id)
-        .order_by(desc(Feedback.updated_at))
-        .limit(10)
         .subquery()
     )
 
     # 서브쿼리에서 각 점수의 평균을 계산합니다.
-    averages = db.query(
-        func.avg(latest_feedbacks_subquery.c.accuracy_score).label('average_accuracy'),
-        func.avg(latest_feedbacks_subquery.c.fluency_score).label('average_fluency'),
-        func.avg(latest_feedbacks_subquery.c.completeness_score).label('average_completeness'),
-        func.avg(latest_feedbacks_subquery.c.pron_score).label('average_pron')
-    ).one()
+    daily_averages = (
+        db.query(
+            daily_feedbacks.c.date,
+            func.avg(daily_feedbacks.c.accuracy_score).label('average_accuracy'),
+            func.avg(daily_feedbacks.c.fluency_score).label('average_fluency'),
+            func.avg(daily_feedbacks.c.completeness_score).label('average_completeness'),
+            func.avg(daily_feedbacks.c.pron_score).label('average_pron')
+        )
+        .group_by(daily_feedbacks.c.date)
+        .order_by(desc(daily_feedbacks.c.date))
+        .limit(10)
+        .all()
+    )
 
-    # 결과를 딕셔너리로 반환합니다. 평균이 없을 경우 None을 반환할 수 있습니다.
-    return {
-        "average_accuracy_score": round(averages.average_accuracy, 1) if averages.average_accuracy is not None else None,
-        "average_fluency_score": round(averages.average_fluency, 1) if averages.average_fluency is not None else None,
-        "average_completeness_score": round(averages.average_completeness, 1) if averages.average_completeness is not None else None,
-        "average_pron_score": round(averages.average_pron, 1) if averages.average_pron is not None else None
-    }
+    # 결과를 리스트 형태로 변환
+    result = []
+    for avg in daily_averages:
+        result.append({
+            "date": avg.date.isoformat(),
+            "average_accuracy_score": round(avg.average_accuracy, 1) if avg.average_accuracy is not None else None,
+            "average_fluency_score": round(avg.average_fluency, 1) if avg.average_fluency is not None else None,
+            "average_completeness_score": round(avg.average_completeness, 1) if avg.average_completeness is not None else None,
+            "average_pron_score": round(avg.average_pron, 1) if avg.average_pron is not None else None
+        })
+
+    return result
