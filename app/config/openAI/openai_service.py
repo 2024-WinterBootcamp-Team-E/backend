@@ -84,7 +84,7 @@ async def get_pronunciation_feedback(words: list, text:str) -> str:
     system_message = (
         "당신은 사용자의 발음 상태를 분석하는 전문가입니다.\n"
         f"사용자가 발음한 문장: '{text}'\n\n"
-        "아래는 Azure Speech SDK를 통해 추출된 단어/음절/음소 및 해당 발음 평가 데이터입니다:\n"
+        "아래는 단어의 음절에 대한 발음 평가 데이터입니다:\n"
         f"{words_json_str}\n\n"
         "당신의 목표:\n"
         "1. 잘못 발음된 음절들을 찾아서 구체적으로 지적\n"

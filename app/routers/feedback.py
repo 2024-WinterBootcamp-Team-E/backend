@@ -9,6 +9,7 @@ from app.config.openAI.openai_service import get_pronunciation_feedback
 from app.models.feedback import Feedback
 from app.services.user_service import get_user
 from pymongo.database import Database
+import asyncio
 
 router = APIRouter(
     prefix="/feedback",
@@ -42,8 +43,8 @@ async def analyze_pronunciation_endpoint(
         if not words:
             raise HTTPException(status_code=400, detail="Words 데이터가 비어 있습니다.")
         processed_words = preprocess_words(words)
-        print(f"[LOG] Azure Result: {processed_words}")
-        await extract_weak_pronunciations(processed_words, user_id, mdb)
+        #print(f"[LOG] Azure Result: {processed_words}")
+
         pron_assessment = nbest_data.get("PronunciationAssessment")
         if not pron_assessment:
             raise HTTPException(status_code=400, detail="PronunciationAssessment 데이터가 없습니다.")
@@ -55,8 +56,16 @@ async def analyze_pronunciation_endpoint(
         # 디버깅 로그
         # for k, v in scores.items():
         #     print(f"[LOG] {k}: {v}")
+        extract_task = asyncio.create_task(
+            extract_weak_pronunciations(processed_words, user_id, mdb)
+        )
+        gpt_task = asyncio.create_task(
+            get_pronunciation_feedback(processed_words, text)
+        )
 
-        gpt_result = await get_pronunciation_feedback(processed_words,text)
+        #두 작업을 동시에 실행하고, 둘 다 끝날 때까지 대기
+        gpt_result, _ = await asyncio.gather(gpt_task, extract_task)
+
         feedback_entry = db.query(Feedback).filter_by(user_id=user_id, sentence_id=sentence_id).first()
         if not feedback_entry:
             feedback_entry = Feedback(user_id=user_id, sentence_id=sentence_id)
