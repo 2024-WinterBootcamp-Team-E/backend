@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, UploadFile, HTTPException
 from sqlalchemy.orm import Session
-from app.database.session import get_db,get_mongo_db
+from app.database.session import get_db, get_mongo_db, get_mongo_async_db
 from app.config.azure.pronunciation_feedback import analyze_pronunciation_with_azure
 from app.schemas.ResultResponseModel import ResultResponseModel
-from app.services.feedback_service import get_value, get_avg_score, extract_weak_pronunciations
+from app.services.feedback_service import get_value, get_avg_score, extract_weak_pronunciations, preprocess_words
 from app.models.sentence import Sentence
 from app.config.openAI.openai_service import get_pronunciation_feedback
 from app.models.feedback import Feedback
@@ -21,45 +21,42 @@ async def analyze_pronunciation_endpoint(
         sentence_id: int,
         audio_file: UploadFile,
         db: Session = Depends(get_db),
-        mdb: Database = Depends(get_mongo_db)
+        mdb: Database = Depends(get_mongo_async_db)
 ):
     try:
-        sentence_entry = db.query(Sentence).filter_by(sentence_id=sentence_id, is_deleted=False).first()
+        sentence_entry = db.query(Sentence).filter(Sentence.sentence_id == sentence_id,
+                                                   Sentence.is_deleted == False).first()
         if not sentence_entry:
             raise HTTPException(status_code=404, detail="해당 문장을 찾을 수 없습니다.")
         text = sentence_entry.content
-        print(f"[LOG] Sentence Content: {text}")
+        # print(f"[LOG] Sentence Content: {text}")
         audio_data = await audio_file.read()
         azure_result = await analyze_pronunciation_with_azure(text, audio_data)
-        print(f"[LOG] Azure Result: {azure_result}")
-        json_string = None
-        result_properties = azure_result.get("result_properties", {})
-        print(f"[LOG] Available keys in result_properties: {list(result_properties.keys())}")
 
-        for key in result_properties:
-            if "JsonResult" in str(key):
-                json_string = result_properties[key]
-                break
-        if not json_string:
-            raise HTTPException(status_code=400, detail="Azure 응답에 JsonResult 데이터가 없습니다.")
+        nbest_list = azure_result.get("NBest")
+        if not nbest_list:
+            raise HTTPException(status_code=400, detail="NBest 데이터가 비어 있습니다.")
+        nbest_data = nbest_list[0]
+        words = nbest_data.get("Words")
 
+        if not words:
+            raise HTTPException(status_code=400, detail="Words 데이터가 비어 있습니다.")
+        processed_words = preprocess_words(words)
+        print(f"[LOG] Azure Result: {processed_words}")
+        await extract_weak_pronunciations(processed_words, user_id, mdb)
+        pron_assessment = nbest_data.get("PronunciationAssessment")
+        if not pron_assessment:
+            raise HTTPException(status_code=400, detail="PronunciationAssessment 데이터가 없습니다.")
         keys = ["AccuracyScore", "FluencyScore", "CompletenessScore", "PronScore"]
-        scores = {}
-        for key in keys:
-            try:
-                scores[key] = get_value(key, json_string)
-                print(f"[LOG] {key}: {scores[key]}")
-            except ValueError as e:
-                print(f"[ERROR] {e}")
-                raise HTTPException(status_code=400, detail=f"키 {key}를 찾을 수 없습니다.")
 
-        weak_pronunciations = extract_weak_pronunciations(azure_result,user_id,mdb)
-        print(f"[LOG] Weak Pronunciations:")
-        for weak in weak_pronunciations:
-            print(f"Syllable: {weak['syllable']}")
+        # 5) 점수 추출
+        scores = {k: pron_assessment[k] for k in keys}
 
+        # 디버깅 로그
+        # for k, v in scores.items():
+        #     print(f"[LOG] {k}: {v}")
 
-        gpt_result = await get_pronunciation_feedback(azure_result)
+        gpt_result = await get_pronunciation_feedback(processed_words,text)
         feedback_entry = db.query(Feedback).filter_by(user_id=user_id, sentence_id=sentence_id).first()
         if not feedback_entry:
             feedback_entry = Feedback(user_id=user_id, sentence_id=sentence_id)

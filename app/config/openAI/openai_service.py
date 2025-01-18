@@ -3,6 +3,7 @@ import openai
 from fastapi import HTTPException, UploadFile, Depends
 from dotenv import load_dotenv
 import os
+import json
 from pymongo.database import Database
 from app.database.session import get_mongo_db
 
@@ -74,35 +75,42 @@ def get_grammar_feedback(prompt: str, messages: list) -> str:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
 
-async def get_pronunciation_feedback(azure_response: dict) -> str:
-    azure_response_str = "\n".join(
-        f"{key}: {value}" for key, value in azure_response.items()
+async def get_pronunciation_feedback(words: list, text:str) -> str:
+    words_json_str = json.dumps(words, ensure_ascii=False, indent=0)
+
+    # 2) 메시지 구성
+    #  - 첫 번째(system): ChatGPT에게 규칙 및 평가 요약 제공
+    #  - 두 번째(user): 발음 피드백 요청
+    system_message = (
+        "당신은 사용자의 발음 상태를 분석하는 전문가입니다.\n"
+        f"사용자가 발음한 문장: '{text}'\n\n"
+        "아래는 Azure Speech SDK를 통해 추출된 단어/음절/음소 및 해당 발음 평가 데이터입니다:\n"
+        f"{words_json_str}\n\n"
+        "당신의 목표:\n"
+        "1. 잘못 발음된 음절들을 찾아서 구체적으로 지적\n"
+        "3. 개선 방향을 알려주되, 응원/인사말은 빼고\n"
+        "4. 전체 30단어 내외로 짧게, 간결한 문장으로 작성\n"
     )
 
+    # 2) user 메시지
+    #    - 사용자가 발음 피드백을 부탁한다는 상황을 설정
+    user_message = (
+        "제 발음 평가 결과를 토대로, 음절 단위 발음 피드백을 간략히 알려주세요."
+    )
     messages = [
-        {
-            "role": "user",
-            "content": (
-                f"{azure_response_str}\n\n"
-                "이 데이터를 바탕으로, 피드백을 작성해 주세요:\n"
-                "1. 발음에서 문제가 있었던 단어를 찾아주세요.\n"
-                "2. 문제가 되는 발음의 원인은 구체적으로 설명해 주고 개선방향을 알려주세요.\n"
-                "3. 문제가 없거나 잘한 부분은 언급하지 말아주세요\n"
-                "출력 형식은 대화체로 작성해 주세요. 응원, 인사말같은 불필요한 말은 빼고 30단어 내외로 작성해 주세요.\n"
-
-
-            )
-        }
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": user_message},
     ]
-
+    # 3) OpenAI ChatCompletion 호출
     try:
         response = await openai.ChatCompletion.acreate(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=messages
         )
         return response["choices"][0]["message"]["content"]
 
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Failed to generate GPT feedback: {str(e)}"
+            status_code=500,
+            detail=f"Failed to generate GPT feedback: {str(e)}"
         )

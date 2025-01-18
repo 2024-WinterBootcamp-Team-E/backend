@@ -8,7 +8,7 @@ import json
 from app.config.azure.pronunciation_feedback import analyze_pronunciation_with_azure
 from fastapi import HTTPException
 from app.config.openAI.openai_service import get_pronunciation_feedback
-
+from pymongo.database import Database
 def get_feedbacks(user: User, db: Session):
     feedbacks = db.query(Feedback).options(
         joinedload(Feedback.sentence)
@@ -81,63 +81,63 @@ def get_avg_score(user_id: int, db: Session) -> Dict[str, Optional[float]]:
 
     return result
 
-def extract_weak_pronunciations(azure_result, user_id: int, mdb:Database, threshold=97):
+async def extract_weak_pronunciations(processed_words, user_id: int, mdb:Database, threshold=97):
     try:
-        # result_properties 가져오기
-        result_properties = azure_result.get("result_properties", {})
-        json_string = None
-
-        # JsonResult를 포함하는 키 검색
-        for key, value in result_properties.items():
-            if "JsonResult" in str(key):
-                json_string = value
-                break
-
-        # JsonResult 데이터 확인
-        if not json_string:
-            raise ValueError("result_properties에서 JsonResult 데이터를 찾을 수 없습니다.")
-
-        # JSON 문자열 디코딩
-        json_data = json.loads(json_string)
-
-        # NBest 데이터 확인
-        nbest_data = json_data.get("NBest", [])
-        if not nbest_data:
-            raise ValueError("NBest 데이터가 비어 있습니다.")
-
+        # 1) 약한 음절을 담을 리스트 (디버깅, 로깅 용도)
         weak_syllables = []
-        # NBest 섹션을 순회하며 분석
-        for nbest in nbest_data:
-            for word_data in nbest.get("Words", []):
-                word = word_data.get("Word", "")
-                for syllable_data in word_data.get("Syllables", []):
-                    syllable = syllable_data.get("Syllable", "")
-                    pronunciation_assessment = syllable_data.get("PronunciationAssessment", {})
-                    accuracy_score = pronunciation_assessment.get("AccuracyScore", 100.0)
 
-                    # 정확도 점수가 임계값 이하일 경우 약한 발음으로 추가
-                    if accuracy_score <= threshold:
-                        weak_syllables.append({
-                            "word": word,
-                            "syllable": syllable,
-                            #"accuracy_score": accuracy_score
-                        })
+        # 2) 전처리된 words를 순회
+        for word_data in processed_words:
+            word = word_data.get("Word", "")
 
-                        # MongoDB에 약점 데이터 업데이트
-                        mdb["user_weakness_data"].update_one(
-                            {"user_id": user_id},
-                            {
-                                "$inc": {f"weakness.{syllable}.count": 1},
-                                "$addToSet": {f"weakness.{syllable}.words": word}
-                            },
-                            upsert=True
-                        )
+            # 3) 각 단어의 Syllables 데이터 확인
+            syllables = word_data.get("Syllables", [])
+            for syllable_data in syllables:
+                syllable = syllable_data.get("Syllable", "")
+                pron_assessment = syllable_data.get("PronunciationAssessment", {})
+                accuracy_score = pron_assessment.get("AccuracyScore", 100.0)
 
-        return weak_syllables
+                # 4) 정확도 점수가 임계값 이하일 경우 약한 발음으로 처리
+                if accuracy_score <= threshold:
+                    weak_syllables.append({
+                        "word": word,
+                        "syllable": syllable,
+                        "accuracy_score": accuracy_score
+                    })
 
-    except json.JSONDecodeError as e:
-        print(f"[오류] JSON 디코딩 실패: {e}")
-        raise ValueError("JsonResult가 올바른 JSON 형식이 아닙니다.")
+                    # 5) MongoDB에 약점(syllable) 데이터 업데이트
+                    await mdb["user_weakness_data"].update_one(
+                        {"user_id": user_id},
+                        {
+                            "$inc": {f"weakness.{syllable}.count": 1},
+                            "$addToSet": {f"weakness.{syllable}.words": word}
+                        },
+                        upsert=True
+                    )
+
+        # 선택적으로, 약한 발음 리스트를 로깅하거나 반환
+        # print("[LOG] Weak Syllables:", weak_syllables)
+        # return weak_syllables
+
     except Exception as e:
+        # 예외 처리 (로그 출력, HTTPException 등 상황에 맞게 처리)
         print(f"[오류] {e}")
         raise ValueError(f"약점 발음을 추출하는 중 오류 발생: {e}")
+
+
+def preprocess_words(words: list) -> list:
+    processed = [
+        {
+            "Word": w.get("Word"),
+            "PronunciationAssessment": w.get("PronunciationAssessment"),
+            "Syllables": [
+                {
+                    "Syllable": s.get("Syllable"),
+                    "PronunciationAssessment": s.get("PronunciationAssessment")
+                }
+                for s in w.get("Syllables", [])
+            ]
+        }
+        for w in words
+    ]
+    return processed

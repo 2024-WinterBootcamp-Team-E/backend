@@ -1,4 +1,5 @@
 import os
+import json
 from azure.cognitiveservices.speech import (
     SpeechConfig,
     AudioConfig,
@@ -42,8 +43,6 @@ async def analyze_pronunciation_with_azure(text: str, audio_data: bytes):
 
     pronunciation_assessment_result_json = result.properties.get(
         PropertyId.SpeechServiceResponse_JsonResult)
-    print(f"[LOG] JSON Result: {pronunciation_assessment_result_json}")
+    #print(f"[LOG] JSON Result: {pronunciation_assessment_result_json}")
     # 6) 상세 정보 추출 및 반환
-    return {
-        "result_properties": dict(result.properties) # 결과 속성을 딕셔너리로 변환
-    }
+    return json.loads(pronunciation_assessment_result_json)
