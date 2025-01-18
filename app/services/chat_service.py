@@ -72,11 +72,15 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
         gpt_response_full = ""
         async for chunk in generate_gpt_response(chat_id, transcription, mdb):
             gpt_response_full += chunk
-            yield f"data: {json.dumps({'step': 'gpt_response', 'content': chunk})}\n\n"
+           # yield f"data: {json.dumps({'step': 'gpt_response', 'content': chunk})}\n\n"
+           # 중요!!!!!
+           # 일레븐 랩스는 청크단위받는것이 지원이 안되기 떄문에,일단 데이터를 청크단위로 된 데이터를 일단 받은 후 그걸 합치고
+           # 일단 tts로 변환시킨 후 중간중간에 청크로 주어서 클라이언트한테는 동시에 출력되는것 처럼 보이게 만드는 방법으로 해야함..
+           # 결론적으로 sse를 쓸필요가 없었음 그래서 공백단위(단어)로 나누어서 대답을 줌
 
         # Step 3: TTS Audio
-        tts_audio_base64 = generate_tts_audio(gpt_response_full, tts_id)
-        yield f"data: {json.dumps({'step': 'tts_audio', 'content': tts_audio_base64})}\n\n"
+        async for combined_chunk in generate_tts_with_gpt(gpt_response_full, tts_id):
+            yield f"data: {combined_chunk}\n\n"
 
         # Step 4: Grammar Feedback
         grammar_feedback = await generate_grammar_feedback(transcription)
@@ -96,6 +100,25 @@ async def generate_transcription(file_content_io: io.BytesIO, filename: str) -> 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"STT 변환 실패: {str(e)}")
 
+async def generate_tts_with_gpt(gpt_response_full: str, tts_id: str):
+    try:
+        # TTS 데이터를 스트리밍
+        tts_audio = text_to_speech_stream(gpt_response_full, tts_id)
+        gpt_words = gpt_response_full.split()  # 단어 단위로 나눔
+        gpt_index = 0
+        print(f'gpt_response_full:{gpt_response_full} ')
+
+        for tts_chunk in tts_audio:
+            # TTS 청크를 JSON 형식으로 변환
+            yield json.dumps({'step': 'tts_audio', 'content': base64.b64encode(tts_chunk).decode('utf-8')})
+
+            # TTS 청크 중간중간에 GPT 문장 삽입
+            if gpt_index < len(gpt_words):
+                yield json.dumps({'step': 'gpt_response', 'content': gpt_words[gpt_index]})
+                gpt_index += 1
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TTS 변환 실패: {str(e)}")
 
 async def generate_gpt_response(chat_id: int, transcription: str, mdb: Database) -> str:
     try:
