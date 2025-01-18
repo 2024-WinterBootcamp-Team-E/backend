@@ -1,19 +1,18 @@
 import io
 import json
+import os
 
 from fastapi import HTTPException, UploadFile
 from dotenv import load_dotenv
-from openai import OpenAI
 
+import openai
 load_dotenv()
-
-openai=OpenAI()
-
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 async def transcribe_audio(file_content_io: io.BytesIO,filename:str) -> str:
     file_content_io.name= filename
     try:
-        response = openai.audio.transcriptions.create(
+        response = openai.Audio.transcribe(
             model="whisper-1",
             file=file_content_io,
         )
@@ -33,7 +32,6 @@ async def get_gpt_response_limited(chat_id: int, prompt: str, mdb) -> str:
     }
     conversation = [system_message]
 
-    # 이전 대화 기록 추가
     if result and "messages" in result and result["messages"]:
         for message in result["messages"]:
             if isinstance(message, dict):
@@ -42,26 +40,23 @@ async def get_gpt_response_limited(chat_id: int, prompt: str, mdb) -> str:
                     "content": message.get("content", "")
                 })
 
-    # 사용자 입력 추가
     conversation.append({
         "role": "user",
         "content": prompt
     })
 
     try:
-        # OpenAI GPT 호출
-        response = openai.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=conversation,
             stream=True,
         )
-       # print(f"response.choices[0].message.content: {response.choices[0].message.content}", flush=True)
 
-        async for chunk in response:  # 스트리밍 데이터 처리
+        for chunk in response:
             if "choices" in chunk and chunk["choices"]:
                 delta = chunk["choices"][0]["delta"]
                 if "content" in delta and delta["content"]:
-                    yield delta["content"]  # 청크 데이터를 스트리밍
+                    yield delta["content"]
 
     except Exception as e:
         yield f"data: {json.dumps({'step': 'error', 'message': f'GPT 응답 생성 실패: {str(e)}'})}\n\n"
@@ -77,7 +72,7 @@ async def get_grammar_feedback(prompt: str) -> str:
     ]
 
     try:
-        response = openai.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=messages,
         )

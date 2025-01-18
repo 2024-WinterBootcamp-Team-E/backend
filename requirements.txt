@@ -31,8 +31,8 @@ jmespath==1.0.1
 multidict==6.1.0
 mysql==0.0.3
 mysqlclient==2.2.6
-openai==1.59.8
-#openai==0.28.0
+#openai==1.59.8
+openai==0.28.0
 
 passlib==1.7.4
 propcache==0.2.1
