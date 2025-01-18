@@ -87,7 +87,6 @@ async def create_bubble_result(chat_id: int, transcription: str, mdb: Database =
 
     # 결과 반환
     return {
-        "user_input": transcription,
         "gpt_response": gpt_response,
         "grammar_feedback": grammar_feedback
     }

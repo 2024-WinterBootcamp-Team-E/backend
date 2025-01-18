@@ -81,23 +81,29 @@ async def create_bubble(chat_id: int,user_id: int, file: UploadFile, db: Session
     if not user:
         raise HTTPException(status_code=404, detail="사용자 없음")
     chat = get_chat(user_id=user_id, chat_id=chat_id, db=db)
+    tts_id=chat.tts_id
+    print("Chat여기는 메인 object:", chat, flush=True)
+    print("Chat 여기는 메인type:", type(chat), flush=True)
+    print("Chat 여기는 메인type:", chat.tts_id, flush=True)
     if not chat:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
     file_content = await file.read()  # <--- UploadFile에서 read()
     file_content_io = io.BytesIO(file_content)  # <--- 메모리에 BytesIO 객체 생성
 
     # ▼▼▼ [수정된 부분 #2] event_generator에 UploadFile 대신 BytesIO를 넘김 ▼▼▼
-    event = event_generator(chat_id=chat_id, file_content_io=file_content_io, filename=file.filename,mdb=mdb)
+    event = event_generator(chat_id=chat_id, tts_id=tts_id,file_content_io=file_content_io, filename=file.filename,mdb=mdb)
 
     # ▼▼▼ [수정된 부분 #3] StreamingResponse에 event_generator를 연결 ▼▼▼
     result = StreamingResponse(event, media_type="text/event-stream")
     return result
 
 
-async def event_generator(chat_id: int, file_content_io: io.BytesIO, filename:str,mdb: Database = Depends(get_mongo_db)): #함수 안에서는 비동기 처리가 안됌 anyio
+async def event_generator(chat_id: int, tts_id:str,file_content_io: io.BytesIO, filename:str,mdb: Database = Depends(get_mongo_db)): #함수 안에서는 비동기 처리가 안됌 anyio
     try:
         transcription = await transcribe_audio(file_content_io,filename)
-        print(transcription,flush=True)
+        #print(transcription,flush=True)
+        print("transcription:이건 라우터 챗", transcription, flush=True)
+
         yield f"data: {json.dumps({'step': 'transcription', 'content': str(transcription)})}\n\n"
         await asyncio.sleep(0.1)
     except Exception as e:
@@ -107,8 +113,12 @@ async def event_generator(chat_id: int, file_content_io: io.BytesIO, filename:st
     try:
         response = await create_bubble_result(chat_id=chat_id, transcription=transcription, mdb=mdb)
         gpt_response = response["gpt_response"]
-        print("GPT Response:", gpt_response, flush=True)
-        tts_id = CHARACTER_TTS_MAP.get(chat.character_name)
+        print("GPT Response여기인가?:", gpt_response, flush=True)
+        print("Type of gpt_response:", type(gpt_response), flush=True)
+        print("Chat object:", chat, flush=True)
+        print("Chat type:", type(chat), flush=True)
+
+        print("TTS ID:", tts_id, flush=True)
         tts_audio = text_to_speech_data(text=gpt_response, voice_id=tts_id)
         tts_audio.seek(0)
         tts_audio_base64 = base64.b64encode(tts_audio.getvalue()).decode("utf-8")

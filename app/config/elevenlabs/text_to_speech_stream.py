@@ -29,6 +29,7 @@ def text_to_speech_data(text: str, voice_id: str) -> BytesIO:
                 use_speaker_boost=True,
             ),
         )
+        print("TTS API response received. Processing audio stream...", flush=True)
         audio_stream = BytesIO()
         for chunk in response:
             if chunk:

@@ -52,7 +52,9 @@ async def get_gpt_response_limited(chat_id: int, prompt: str, mdb) -> str:
             model="gpt-3.5-turbo",
             messages=conversation
         )
-        return response["choices"][0]["message"]["content"]
+        print(f"response.choices[0].message.content: {response.choices[0].message.content}", flush=True)
+        return response.choices[0].message.content
+      #  return response["choices"][0]["message"]["content"]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"GPT 응답 생성 실패: {str(e)}")
 async def get_grammar_feedback(prompt: str) -> str:
@@ -71,7 +73,7 @@ async def get_grammar_feedback(prompt: str) -> str:
             model="gpt-3.5-turbo",
             messages=messages,
         )
-        return response["choices"][0]["message"]["content"]
+        return response.choices[0].message.content
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
 async def get_pronunciation_feedback(azure_response: dict) -> str:
