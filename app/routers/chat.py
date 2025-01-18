@@ -9,8 +9,6 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pymongo.database import Database
 from app.config.constants import CHARACTER_TTS_MAP
-from app.config.elevenlabs.text_to_speech_stream import text_to_speech_data
-from app.config.openAI.openai_service import transcribe_audio, get_gpt_response_limited
 from app.database.session import get_db, get_mongo_db
 from app.models import chat
 from app.services.chat_service import delete_chat, get_chat, get_chatrooms, create_chatroom, create_chatroom_mongo, \
