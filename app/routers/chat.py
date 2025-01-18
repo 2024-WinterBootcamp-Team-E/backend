@@ -10,10 +10,11 @@ from sqlalchemy.orm import Session
 from pymongo.database import Database
 from app.config.constants import CHARACTER_TTS_MAP
 from app.config.elevenlabs.text_to_speech_stream import text_to_speech_data
-from app.config.openAI.openai_service import transcribe_audio
+from app.config.openAI.openai_service import transcribe_audio, get_gpt_response_limited
 from app.database.session import get_db, get_mongo_db
 from app.models import chat
-from app.services.chat_service import delete_chat, get_chat, get_chatrooms, create_chatroom, create_chatroom_mongo,get_chat_history, create_bubble_result
+from app.services.chat_service import delete_chat, get_chat, get_chatrooms, create_chatroom, create_chatroom_mongo, \
+    get_chat_history, event_generator
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.user_service import get_user
 from app.schemas.chat import Chatroomresponse,ChatRoomCreateRequest
@@ -82,59 +83,12 @@ async def create_bubble(chat_id: int,user_id: int, file: UploadFile, db: Session
         raise HTTPException(status_code=404, detail="사용자 없음")
     chat = get_chat(user_id=user_id, chat_id=chat_id, db=db)
     tts_id=chat.tts_id
-    print("Chat여기는 메인 object:", chat, flush=True)
-    print("Chat 여기는 메인type:", type(chat), flush=True)
-    print("Chat 여기는 메인type:", chat.tts_id, flush=True)
     if not chat:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
-    file_content = await file.read()  # <--- UploadFile에서 read()
-    file_content_io = io.BytesIO(file_content)  # <--- 메모리에 BytesIO 객체 생성
-
-    # ▼▼▼ [수정된 부분 #2] event_generator에 UploadFile 대신 BytesIO를 넘김 ▼▼▼
+    file_content = await file.read()
+    file_content_io = io.BytesIO(file_content)
     event = event_generator(chat_id=chat_id, tts_id=tts_id,file_content_io=file_content_io, filename=file.filename,mdb=mdb)
-
-    # ▼▼▼ [수정된 부분 #3] StreamingResponse에 event_generator를 연결 ▼▼▼
     result = StreamingResponse(event, media_type="text/event-stream")
     return result
 
 
-async def event_generator(chat_id: int, tts_id:str,file_content_io: io.BytesIO, filename:str,mdb: Database = Depends(get_mongo_db)): #함수 안에서는 비동기 처리가 안됌 anyio
-    try:
-        transcription = await transcribe_audio(file_content_io,filename)
-        #print(transcription,flush=True)
-        print("transcription:이건 라우터 챗", transcription, flush=True)
-
-        yield f"data: {json.dumps({'step': 'transcription', 'content': str(transcription)})}\n\n"
-        await asyncio.sleep(0.1)
-    except Exception as e:
-        yield f"data: {json.dumps({'step': 'error', 'message': f'STT 변환 실패: {str(e)}'})}\n\n"
-        return
-
-    try:
-        response = await create_bubble_result(chat_id=chat_id, transcription=transcription, mdb=mdb)
-        gpt_response = response["gpt_response"]
-        print("GPT Response여기인가?:", gpt_response, flush=True)
-        print("Type of gpt_response:", type(gpt_response), flush=True)
-        print("Chat object:", chat, flush=True)
-        print("Chat type:", type(chat), flush=True)
-
-        print("TTS ID:", tts_id, flush=True)
-        tts_audio = text_to_speech_data(text=gpt_response, voice_id=tts_id)
-        tts_audio.seek(0)
-        tts_audio_base64 = base64.b64encode(tts_audio.getvalue()).decode("utf-8")
-        print("TTS Audio Base64 generated.", flush=True)
-        yield f"data: {json.dumps({'step': 'gpt_response', 'content': gpt_response})}\n\n"
-        await asyncio.sleep(0.1)
-        yield f"data: {json.dumps({'step': 'tts_audio', 'content': tts_audio_base64})}\n\n"
-        await asyncio.sleep(0.1)
-
-    except Exception as e:
-        yield f"data: {json.dumps({'step': 'error', 'message': f'GPT 응답 또는 TTS실패: {str(e)}'})}\n\n"
-        return
-
-    try:
-        # Step 5: 문법 피드백 제공 (가장 마지막)
-        grammar_feedback = response["grammar_feedback"]
-        yield f"data: {json.dumps({'step': 'grammar_feedback', 'content': grammar_feedback})}\n\n"
-    except Exception as e:
-        yield f"data: {json.dumps({'step': 'error', 'message': f'문법 피드백 생성 실패: {str(e)}'})}\n\n"

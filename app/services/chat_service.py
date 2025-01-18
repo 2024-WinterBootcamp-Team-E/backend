@@ -1,8 +1,13 @@
+import asyncio
+import base64
+import io
+import json
 from http.client import HTTPException
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from app.config.constants import CHARACTER_TTS_MAP
-from app.config.openAI.openai_service import get_gpt_response_limited,get_grammar_feedback
+from app.config.elevenlabs.text_to_speech_stream import text_to_speech_data
+from app.config.openAI.openai_service import get_gpt_response_limited, get_grammar_feedback, transcribe_audio
 from app.database.session import get_mongo_db
 from app.models.chat import Chat
 from app.schemas.chat import ChatRoomCreateRequest, Chatroomresponse
@@ -56,37 +61,64 @@ def create_chatroom(req: ChatRoomCreateRequest, user_id: int, db: Session):
 def create_chatroom_mongo(chat, mdb:Database):
     mdb["chats"].insert_one({"chat_id": chat.chat_id, "messages":[]})
 
-async def create_bubble_result(chat_id: int, transcription: str, mdb: Database = Depends(get_mongo_db) ):
-    gpt_response = await get_gpt_response_limited(chat_id=chat_id, prompt=transcription, mdb=mdb)
-    grammar_feedback = await get_grammar_feedback(prompt=transcription)
 
-    # 사용자 입력 Bubble 생성
-    user_bubble = {
-        "role" : "user",
-        "content": transcription,
-        "grammar_feedback": grammar_feedback,
-        #"correct_sentence": correct_sentence
-    }
+async def event_generator(chat_id: int, tts_id:str,file_content_io: io.BytesIO, filename:str,mdb: Database = Depends(get_mongo_db)): #함수 안에서는 비동기 처리가 안됌 anyio
+    try:
+        transcription = await transcribe_audio(file_content_io,filename)
+        print("transcription:이건 라우터 챗", transcription, flush=True)
+        yield f"data: {json.dumps({'step': 'transcription', 'content': str(transcription)})}\n\n"
+        await asyncio.sleep(0.1)
+    except Exception as e:
+        yield f"data: {json.dumps({'step': 'error', 'message': f'STT 변환 실패: {str(e)}'})}\n\n"
+        return
 
-    # GPT 응답 Bubble 생성
-    gpt_bubble = {
-        "role": "assistant",
-        "content": gpt_response
-    }
+    try:
+        # Step 2: GPT 응답 스트리밍 처리
+        gpt_response_full = ""
+        gpt_response = get_gpt_response_limited(chat_id=chat_id, prompt=transcription, mdb=mdb)
 
-    mdb["chats"].update_one(
-        {"chat_id": chat_id},  # 조건: chat_id로 문서 찾기
-        {"$push": {  # messages 배열에 메시지 추가
+        async for chunk in gpt_response:  # GPT 응답 청크 처리
+            print(f"GPT Response Chunk: {chunk}", flush=True)
+            gpt_response_full += chunk
+            yield f"data: {json.dumps({'step': 'gpt_response', 'content': chunk})}\n\n"
+            await asyncio.sleep(0.1)
+
+        # Step 3: TTS 처리
+        tts_audio = text_to_speech_data(text=gpt_response_full, voice_id=tts_id)
+        tts_audio.seek(0)
+        tts_audio_base64 = base64.b64encode(tts_audio.getvalue()).decode("utf-8")
+        print("TTS Audio Base64 generated.", flush=True)
+        yield f"data: {json.dumps({'step': 'tts_audio', 'content': tts_audio_base64})}\n\n"
+        await asyncio.sleep(0.1)
+
+        # Step 4: 문법 피드백 생성
+        grammar_feedback = await get_grammar_feedback(prompt=transcription)
+        yield f"data: {json.dumps({'step': 'grammar_feedback', 'content': grammar_feedback})}\n\n"
+        await asyncio.sleep(0.1)
+
+        # Step 5: MongoDB 저장
+        user_bubble = {
+            "role": "user",
+            "content": transcription,
+            "grammar_feedback": grammar_feedback,
+        }
+
+        gpt_bubble = {
+            "role": "assistant",
+            "content": gpt_response_full,
+        }
+
+        mdb["chats"].update_one(
+            {"chat_id": chat_id},  # 조건: chat_id로 문서 찾기
+            {"$push": {  # messages 배열에 메시지 추가
                 "messages": {
                     "$each": [user_bubble, gpt_bubble]
                 }
-            }
-        },
-        upsert=True  # 문서가 없으면 새로 생성
-    )
+            }},
+            upsert=True  # 문서가 없으면 새로 생성
+        )
+        print("MongoDB 저장 완료", flush=True)
 
-    # 결과 반환
-    return {
-        "gpt_response": gpt_response,
-        "grammar_feedback": grammar_feedback
-    }
+    except Exception as e:
+        yield f"data: {json.dumps({'step': 'error', 'message': f'오류 발생: {str(e)}'})}\n\n"
+        return

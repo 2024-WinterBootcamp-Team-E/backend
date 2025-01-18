@@ -1,4 +1,6 @@
 import io
+import json
+
 from fastapi import HTTPException, UploadFile
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -50,13 +52,19 @@ async def get_gpt_response_limited(chat_id: int, prompt: str, mdb) -> str:
         # OpenAI GPT 호출
         response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=conversation
+            messages=conversation,
+            stream=True,
         )
-        print(f"response.choices[0].message.content: {response.choices[0].message.content}", flush=True)
-        return response.choices[0].message.content
-      #  return response["choices"][0]["message"]["content"]
+       # print(f"response.choices[0].message.content: {response.choices[0].message.content}", flush=True)
+
+        async for chunk in response:  # 스트리밍 데이터 처리
+            if "choices" in chunk and chunk["choices"]:
+                delta = chunk["choices"][0]["delta"]
+                if "content" in delta and delta["content"]:
+                    yield delta["content"]  # 청크 데이터를 스트리밍
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"GPT 응답 생성 실패: {str(e)}")
+        yield f"data: {json.dumps({'step': 'error', 'message': f'GPT 응답 생성 실패: {str(e)}'})}\n\n"
 async def get_grammar_feedback(prompt: str) -> str:
     system_message = {
         "role": "system",
