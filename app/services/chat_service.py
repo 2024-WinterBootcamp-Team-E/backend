@@ -56,9 +56,9 @@ def create_chatroom(req: ChatRoomCreateRequest, user_id: int, db: Session):
 def create_chatroom_mongo(chat, mdb:Database):
     mdb["chats"].insert_one({"chat_id": chat.chat_id, "messages":[]})
 
-def create_bubble_result(chat_id: int, transcription: str, mdb: Database = Depends(get_mongo_db) ):
-    gpt_response = get_gpt_response_limited(chat_id=chat_id, prompt=transcription, messages=[], mdb=mdb)
-    grammar_feedback = get_grammar_feedback(prompt=transcription, messages=[])
+async def create_bubble_result(chat_id: int, transcription: str, mdb: Database = Depends(get_mongo_db) ):
+    gpt_response = await get_gpt_response_limited(chat_id=chat_id, prompt=transcription, mdb=mdb)
+    grammar_feedback = await get_grammar_feedback(prompt=transcription)
 
     # 사용자 입력 Bubble 생성
     user_bubble = {
