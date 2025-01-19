@@ -37,7 +37,6 @@ async def analyze_pronunciation_with_azure(text: str, audio_data: bytes):
 
     # 5) 발음 평가
     result = recognizer.recognize_once()
-    
     # 6) 상세 정보 추출 및 반환
     return {
         "result_properties": dict(result.properties) # 결과 속성을 딕셔너리로 변환

@@ -1,14 +1,18 @@
+import asyncio
 import base64
+import io
+import json
+from pprint import pprint
+
 from fastapi import APIRouter, Depends, HTTPException,UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pymongo.database import Database
 from app.config.constants import CHARACTER_TTS_MAP
-from app.config.elevenlabs.text_to_speech_stream import text_to_speech_data
-from app.config.openAI.openai_service import transcribe_audio
 from app.database.session import get_db, get_mongo_db
-from app.services import chat_service
+from app.models import chat
 from app.services.chat_service import delete_chat, get_chat, get_chatrooms, create_chatroom, create_chatroom_mongo, \
-    get_chat_history
+    get_chat_history, event_generator
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.user_service import get_user
 from app.schemas.chat import Chatroomresponse,ChatRoomCreateRequest
@@ -70,34 +74,14 @@ def chat_with_voice(req: ChatRoomCreateRequest, user_id: int, db: Session = Depe
     return ResultResponseModel(code=200, message="채팅방 생성 완료", data=new_chat.chat_id)
 
 
-@router.post("/{user_id}/{chat_id}", summary="대화 생성", description="STT를 통해 GPT와 대화를 생성합니다.")
-async def create_bubble(chat_id: int,user_id: int, file: UploadFile, db: Session = Depends(get_db), mdb: Database = Depends(get_mongo_db)):
+@router.post("/{user_id}/{chat_id}", summary="대화 생성", description="STT를 통해 GPT와 대화를 생성합니다.",response_class=StreamingResponse)
+async def create_bubble(chat_id: int,user_id: int, file: UploadFile, db: Session = Depends(get_db), mdb: Database = Depends(get_mongo_db)): ##여러명이 동시에 처리가능 uvcon
     user = get_user(user_id, db)
     if not user:
         raise HTTPException(status_code=404, detail="사용자 없음")
-
     chat = get_chat(user_id=user_id, chat_id=chat_id, db=db)
     if not chat:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
+    event = event_generator(chat_id=chat_id, tts_id=chat.tts_id, file_content_io=io.BytesIO(await file.read()),filename=file.filename, mdb=mdb)
+    return StreamingResponse(event, media_type="text/event-stream")
 
-    try:
-        transcription = transcribe_audio(file)
-        tts_id = CHARACTER_TTS_MAP.get(chat.character_name)
-        response = chat_service.create_bubble_result(chat_id=chat_id, transcription=transcription, mdb=mdb)
-        tts_audio = text_to_speech_data(text=response["gpt_response"], voice_id=tts_id)
-        tts_audio.seek(0)
-
-        tts_audio_base64 = base64.b64encode(tts_audio.getvalue()).decode("utf-8")
-
-        return ResultResponseModel(
-            code=200,
-            message="대화 생성 성공",
-            data={
-                "response": response,
-                "tts_audio": tts_audio_base64  # Base64 문자열로 반환
-            }
-        )
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"대화 생성 중 오류 발생: {str(e)}")
