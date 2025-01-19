@@ -1,8 +1,13 @@
+import asyncio
+import base64
+import io
+import json
 from http.client import HTTPException
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from app.config.constants import CHARACTER_TTS_MAP
-from app.config.openAI.openai_service import get_gpt_response_limited,get_grammar_feedback
+from app.config.elevenlabs.text_to_speech_stream import generate_tts_audio_async
+from app.config.openAI.openai_service import get_gpt_response_limited, get_grammar_feedback, transcribe_audio
 from app.database.session import get_mongo_db
 from app.models.chat import Chat
 from app.schemas.chat import ChatRoomCreateRequest, Chatroomresponse
@@ -56,38 +61,125 @@ def create_chatroom(req: ChatRoomCreateRequest, user_id: int, db: Session):
 def create_chatroom_mongo(chat, mdb:Database):
     mdb["chats"].insert_one({"chat_id": chat.chat_id, "messages":[]})
 
-def create_bubble_result(chat_id: int, transcription: str, mdb: Database = Depends(get_mongo_db) ):
-    gpt_response = get_gpt_response_limited(chat_id=chat_id, prompt=transcription, messages=[], mdb=mdb)
-    grammar_feedback = get_grammar_feedback(prompt=transcription, messages=[])
 
-    # 사용자 입력 Bubble 생성
+async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO, filename: str, mdb: Database = Depends(get_mongo_db)):
+    try:
+        # Step 1: Transcription
+        transcription = await generate_transcription(file_content_io, filename)
+        yield f"data: {json.dumps({'step': 'transcription', 'content': transcription})}\n\n"
+
+        # Step 2: Queue를 사용하여 GPT와 TTS 작업 병렬 실행
+        send_queue = asyncio.Queue()
+
+        async def process_gpt_and_tts():
+            gpt_response_full = ""
+            buffer = ""  # GPT 청크를 버퍼링
+            async for gpt_chunk in generate_gpt_response(chat_id, transcription, mdb):
+                gpt_response_full += gpt_chunk
+                buffer += gpt_chunk
+
+                # 버퍼가 일정 길이를 넘으면 TTS 요청
+                if len(buffer) > 50 or "." in buffer:
+                    # GPT 청크를 Queue에 추가
+                    await send_queue.put(
+                        json.dumps({'step': 'gpt_response', 'content': buffer})
+                    )
+
+                    # TTS 요청
+                    async for tts_chunk in generate_tts_audio_async(buffer, tts_id):
+                        await send_queue.put(
+                            json.dumps({'step': 'tts_audio', 'content': base64.b64encode(tts_chunk).decode('utf-8')})
+                        )
+                    buffer = ""  # 버퍼 초기화
+
+            # 남아있는 버퍼 처리
+            if buffer:
+                await send_queue.put(
+                    json.dumps({'step': 'gpt_response', 'content': buffer})
+                )
+                async for tts_chunk in generate_tts_audio_async(buffer, tts_id):
+                    await send_queue.put(
+                        json.dumps({'step': 'tts_audio', 'content': base64.b64encode(tts_chunk).decode('utf-8')})
+                    )
+
+            await send_queue.put(None)  # 작업 종료 신호
+            return gpt_response_full
+
+        # GPT와 TTS 작업을 비동기로 실행
+        gpt_tts_task = asyncio.create_task(process_gpt_and_tts())
+
+        # Queue에서 데이터를 클라이언트로 전송
+        while True:
+            try:
+                message = await asyncio.wait_for(send_queue.get(), timeout=2.0)
+                if message is None:  # 작업 종료
+                    break
+                yield f"data: {message}\n\n"
+            except asyncio.TimeoutError:
+                yield f"data: {json.dumps({'step': 'error', 'message': 'Timeout occurred while processing data'})}\n\n"
+                break
+
+        # 전체 GPT 응답 가져오기
+        gpt_response_full = await gpt_tts_task
+
+        # Step 4: Grammar Feedback
+        grammar_feedback = await generate_grammar_feedback(transcription)
+        yield f"data: {json.dumps({'step': 'grammar_feedback', 'content': grammar_feedback})}\n\n"
+
+        # Step 5: Save to Database
+
+        save_to_database(chat_id, transcription, gpt_response_full, grammar_feedback, mdb)
+
+    except HTTPException as e:
+        yield f"data: {json.dumps({'step': 'error', 'message': e.detail})}\n\n"
+
+
+async def generate_transcription(file_content_io: io.BytesIO, filename: str) -> str:
+    try:
+        transcription = await transcribe_audio(file_content_io, filename)
+        return transcription
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"STT 변환 실패: {str(e)}")
+
+async def generate_gpt_response(chat_id: int, transcription: str, mdb: Database) -> str:
+    try:
+        gpt_response_full = ""
+        gpt_response = get_gpt_response_limited(chat_id=chat_id, prompt=transcription, mdb=mdb)
+        async for chunk in gpt_response:
+            gpt_response_full += chunk
+            yield chunk
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"GPT 응답 생성 실패: {str(e)}")
+
+async def generate_grammar_feedback(transcription: str) -> str:
+    try:
+        return await get_grammar_feedback(prompt=transcription)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
+
+
+def save_to_database(chat_id: int, transcription: str, gpt_response_full: str, grammar_feedback: str, mdb: Database):
+    print(f'grammar_feed')
     user_bubble = {
-        "role" : "user",
+        "role": "user",
         "content": transcription,
         "grammar_feedback": grammar_feedback,
-        #"correct_sentence": correct_sentence
     }
 
-    # GPT 응답 Bubble 생성
     gpt_bubble = {
         "role": "assistant",
-        "content": gpt_response
+        "content": gpt_response_full,
     }
 
-    mdb["chats"].update_one(
-        {"chat_id": chat_id},  # 조건: chat_id로 문서 찾기
-        {"$push": {  # messages 배열에 메시지 추가
+    try:
+        mdb["chats"].update_one(
+            {"chat_id": chat_id},
+            {"$push": {
                 "messages": {
                     "$each": [user_bubble, gpt_bubble]
                 }
-            }
-        },
-        upsert=True  # 문서가 없으면 새로 생성
-    )
-
-    # 결과 반환
-    return {
-        "user_input": transcription,
-        "gpt_response": gpt_response,
-        "grammar_feedback": grammar_feedback
-    }
+            }},
+            upsert=True
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"데이터베이스 저장 실패: {str(e)}")
