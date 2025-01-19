@@ -72,7 +72,7 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
         gpt_response_full = ""
         async for chunk in generate_gpt_response(chat_id, transcription, mdb):
             gpt_response_full += chunk
-           # yield f"data: {json.dumps({'step': 'gpt_response', 'content': chunk})}\n\n"
+            yield f"data: {json.dumps({'step': 'gpt_response', 'content': chunk})}\n\n"
            # 중요!!!!!
            # 일레븐 랩스는 청크단위받는것이 지원이 안되기 떄문에,일단 데이터를 청크단위로 된 데이터를 일단 받은 후 그걸 합치고
            # 일단 tts로 변환시킨 후 중간중간에 청크로 주어서 클라이언트한테는 동시에 출력되는것 처럼 보이게 만드는 방법으로 해야함..
@@ -87,6 +87,7 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
         yield f"data: {json.dumps({'step': 'grammar_feedback', 'content': grammar_feedback})}\n\n"
 
         # Step 5: Save to Database
+
         save_to_database(chat_id, transcription, gpt_response_full, grammar_feedback, mdb)
 
     except HTTPException as e:
