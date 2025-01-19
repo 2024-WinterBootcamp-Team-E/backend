@@ -2,18 +2,13 @@ import asyncio
 import io
 import json
 import os
-from pymongo.database import Database
-
-from app.database.session import get_mongo_db
-import json
-from fastapi.responses import StreamingResponse
-
+import openai
 from fastapi import HTTPException, UploadFile
 from dotenv import load_dotenv
-
-import openai
-
 from app.models import Feedback
+
+
+
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -89,7 +84,6 @@ async def get_grammar_feedback(prompt: str) -> str:
         return response.choices[0].message.content
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
-
 async def get_pronunciation_feedback(azure_response: dict) -> str:
     # 시스템 역할 설정
     system_message = {
@@ -133,6 +127,8 @@ async def get_pronunciation_feedback(azure_response: dict) -> str:
                 delta = chunk['choices'][0]['delta']
                 if 'content' in delta:
                     yield delta['content']
+
+
 
     except Exception as e:
         raise HTTPException(
