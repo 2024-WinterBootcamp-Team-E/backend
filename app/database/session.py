@@ -1,24 +1,45 @@
 import os
+from contextlib import asynccontextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+from pymongo import MongoClient
+from fastapi import FastAPI, Request
+import logging
 
-# .env 파일 로드
+logging.basicConfig()
+logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+
 load_dotenv()
 
-# 환경 변수에서 데이터베이스 URL 가져오기
 DB_URL = os.getenv("DB_URL")
-
-# 데이터베이스 엔진 생성
-engine = create_engine(DB_URL, echo=True)  # echo=True로 SQLAlchemy 쿼리 로그 출력
+engine = create_engine(DB_URL, echo=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Base 클래스 생성
 Base = declarative_base()
+
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+MONGODB_URL = os.getenv("MONGODB_URL")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+
+    print("MongoDB 클라이언트 초기화 중...")
+    client = MongoClient(MONGODB_URL)
+    try:
+        app.state.mongo_client = client
+        yield
+    finally:
+        print("MongoDB 클라이언트 종료 중...")
+        client.close()
+
+
+def get_mongo_db(request: Request):
+    return request.app.state.mongo_client["winterboote"]

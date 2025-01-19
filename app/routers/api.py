@@ -1,8 +1,14 @@
 from fastapi import APIRouter
-from . import users
+
+from . import users, chat, sentence, test, feedback
+
 
 router = APIRouter(
-    prefix="/api/v1"  # 모든 엔드포인트에 /api/v1 추가
+    prefix="/api/v1"
 )
 
-router.include_router(users.router)  # users 라우트를 포함
+router.include_router(users.router)  
+router.include_router(chat.router)  
+router.include_router(sentence.router)
+router.include_router(test.router)
+router.include_router(feedback.router)
