@@ -6,7 +6,7 @@ from http.client import HTTPException
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from app.config.constants import CHARACTER_TTS_MAP
-from app.config.elevenlabs.text_to_speech_stream import text_to_speech_stream
+from app.config.elevenlabs.text_to_speech_stream import generate_tts_audio_async
 from app.config.openAI.openai_service import get_gpt_response_limited, get_grammar_feedback, transcribe_audio
 from app.database.session import get_mongo_db
 from app.models.chat import Chat
@@ -68,19 +68,59 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
         transcription = await generate_transcription(file_content_io, filename)
         yield f"data: {json.dumps({'step': 'transcription', 'content': transcription})}\n\n"
 
-        # Step 2: GPT Response
-        gpt_response_full = ""
-        async for chunk in generate_gpt_response(chat_id, transcription, mdb):
-            gpt_response_full += chunk
-            yield f"data: {json.dumps({'step': 'gpt_response', 'content': chunk})}\n\n"
-           # 중요!!!!!
-           # 일레븐 랩스는 청크단위받는것이 지원이 안되기 떄문에,일단 데이터를 청크단위로 된 데이터를 일단 받은 후 그걸 합치고
-           # 일단 tts로 변환시킨 후 중간중간에 청크로 주어서 클라이언트한테는 동시에 출력되는것 처럼 보이게 만드는 방법으로 해야함..
-           # 결론적으로 sse를 쓸필요가 없었음 그래서 공백단위(단어)로 나누어서 대답을 줌
+        # Step 2: Queue를 사용하여 GPT와 TTS 작업 병렬 실행
+        send_queue = asyncio.Queue()
 
-        # Step 3: TTS Audio
-        async for combined_chunk in generate_tts_with_gpt(gpt_response_full, tts_id):
-            yield f"data: {combined_chunk}\n\n"
+        async def process_gpt_and_tts():
+            gpt_response_full = ""
+            buffer = ""  # GPT 청크를 버퍼링
+            async for gpt_chunk in generate_gpt_response(chat_id, transcription, mdb):
+                gpt_response_full += gpt_chunk
+                buffer += gpt_chunk
+
+                # 버퍼가 일정 길이를 넘으면 TTS 요청
+                if len(buffer) > 50 or "." in buffer:
+                    # GPT 청크를 Queue에 추가
+                    await send_queue.put(
+                        json.dumps({'step': 'gpt_response', 'content': buffer})
+                    )
+
+                    # TTS 요청
+                    async for tts_chunk in generate_tts_audio_async(buffer, tts_id):
+                        await send_queue.put(
+                            json.dumps({'step': 'tts_audio', 'content': base64.b64encode(tts_chunk).decode('utf-8')})
+                        )
+                    buffer = ""  # 버퍼 초기화
+
+            # 남아있는 버퍼 처리
+            if buffer:
+                await send_queue.put(
+                    json.dumps({'step': 'gpt_response', 'content': buffer})
+                )
+                async for tts_chunk in generate_tts_audio_async(buffer, tts_id):
+                    await send_queue.put(
+                        json.dumps({'step': 'tts_audio', 'content': base64.b64encode(tts_chunk).decode('utf-8')})
+                    )
+
+            await send_queue.put(None)  # 작업 종료 신호
+            return gpt_response_full
+
+        # GPT와 TTS 작업을 비동기로 실행
+        gpt_tts_task = asyncio.create_task(process_gpt_and_tts())
+
+        # Queue에서 데이터를 클라이언트로 전송
+        while True:
+            try:
+                message = await asyncio.wait_for(send_queue.get(), timeout=2.0)
+                if message is None:  # 작업 종료
+                    break
+                yield f"data: {message}\n\n"
+            except asyncio.TimeoutError:
+                yield f"data: {json.dumps({'step': 'error', 'message': 'Timeout occurred while processing data'})}\n\n"
+                break
+
+        # 전체 GPT 응답 가져오기
+        gpt_response_full = await gpt_tts_task
 
         # Step 4: Grammar Feedback
         grammar_feedback = await generate_grammar_feedback(transcription)
@@ -101,26 +141,6 @@ async def generate_transcription(file_content_io: io.BytesIO, filename: str) -> 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"STT 변환 실패: {str(e)}")
 
-async def generate_tts_with_gpt(gpt_response_full: str, tts_id: str):
-    try:
-        # TTS 데이터를 스트리밍
-        tts_audio = text_to_speech_stream(gpt_response_full, tts_id)
-        gpt_words = gpt_response_full.split()  # 단어 단위로 나눔
-        gpt_index = 0
-        print(f'gpt_response_full:{gpt_response_full} ')
-
-        for tts_chunk in tts_audio:
-            # TTS 청크를 JSON 형식으로 변환
-            yield json.dumps({'step': 'tts_audio', 'content': base64.b64encode(tts_chunk).decode('utf-8')})
-
-            # TTS 청크 중간중간에 GPT 문장 삽입
-            if gpt_index < len(gpt_words):
-                yield json.dumps({'step': 'gpt_response', 'content': gpt_words[gpt_index]})
-                gpt_index += 1
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"TTS 변환 실패: {str(e)}")
-
 async def generate_gpt_response(chat_id: int, transcription: str, mdb: Database) -> str:
     try:
         gpt_response_full = ""
@@ -130,16 +150,6 @@ async def generate_gpt_response(chat_id: int, transcription: str, mdb: Database)
             yield chunk
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"GPT 응답 생성 실패: {str(e)}")
-
-
-def generate_tts_audio(gpt_response_full: str, tts_id: str) -> str:
-    try:
-        tts_audio = text_to_speech_stream(text=gpt_response_full, voice_id=tts_id)
-        tts_audio.seek(0)
-        return base64.b64encode(tts_audio.getvalue()).decode("utf-8")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"TTS 변환 실패: {str(e)}")
-
 
 async def generate_grammar_feedback(transcription: str) -> str:
     try:
