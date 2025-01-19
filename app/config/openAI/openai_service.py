@@ -6,72 +6,81 @@ import os
 import json
 from pymongo.database import Database
 from app.database.session import get_mongo_db
+from fastapi import HTTPException, UploadFile
+from dotenv import load_dotenv
 
 load_dotenv()
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-
-def transcribe_audio(file: UploadFile) -> str:
+async def transcribe_audio(file_content_io: io.BytesIO,filename:str) -> str:
+    file_content_io.name= filename
     try:
-        # 파일 포인터를 처음으로 리셋
-        file.file.seek(0)
-
-        # SpooledTemporaryFile을 BytesIO로 변환
-        file_content = io.BytesIO(file.file.read())
-        file_content.name = file.filename  # 파일 이름 설정 (필수)
-
-        # Whisper API 호출
         response = openai.Audio.transcribe(
             model="whisper-1",
-            file=file_content  # BytesIO 객체 전달
+            file=file_content_io,
         )
-
-        # 변환된 텍스트 반환
-        return response["text"]
+        return response.text
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"STT 변환 실패: {str(e)}")
 
-def get_gpt_response_limited(chat_id: int, prompt: str, messages: list, mdb) -> str:
-    collection = mdb["chats"]  # 'chats' 콜렉션으로 변경
+async def get_gpt_response_limited(chat_id: int, prompt: str, mdb) -> str:
+    collection = mdb["chats"]
     result = collection.find_one({"chat_id": chat_id}, {"messages": {"$slice": -6}})
+    system_message = {
+        "role": "system",
+        "content": (
+            "You are an AI assistant that provides concise and natural responses. "
+            "Keep answers under 30 words, include follow-up questions, and maintain an engaging tone."
+        )
+    }
+    conversation = [system_message]
 
     if result and "messages" in result and result["messages"]:
         for message in result["messages"]:
-            if isinstance(message, dict):  # 데이터 검증
-                messages.append({
+            if isinstance(message, dict):
+                conversation.append({
                     "role": message.get("role", "user"),
                     "content": message.get("content", "")
                 })
-    messages.append({
-        "role": "user",
-        "content": "Assume the user is speaking English.\n"
-                   f"Respond in 30 words or less with natural, concise, and relevant answers that include a follow-up question or invitation to continue the conversation, ensuring the dialogue stays engaging and interactive. Here is the prompt: {prompt}"
-    })
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=messages
-        )
-        return response["choices"][0]["message"]["content"]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"GPT 응답 생성 실패: {str(e)}")
 
-def get_grammar_feedback(prompt: str, messages: list) -> str:
-    messages.append({
+    conversation.append({
         "role": "user",
-        "content": "다음 문장을 분석하고 아래 조건에 따라 문법적으로 오류가 있는 부분을 모두 찾아줘\n"
-                    "모든 문법적인 오류를 찾고, 왜 오류인지 설명해줘\n"
-                    "올바른 표현 방법을 알려줘.\n"
-                    "불필요한 말은 하지 말아줘\n"
-                    f"대화체로 설명해 주세요 또한 설명을 한국어로 친절하게 작성해 주세요: {prompt}"
+        "content": prompt
     })
+
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=messages
+            model="gpt-3.5-turbo",
+            messages=conversation,
+            stream=True,
         )
-        return response["choices"][0]["message"]["content"]
+
+        for chunk in response:
+            if "choices" in chunk and chunk["choices"]:
+                delta = chunk["choices"][0]["delta"]
+                if "content" in delta and delta["content"]:
+                    yield delta["content"]
+
+    except Exception as e:
+        yield f"data: {json.dumps({'step': 'error', 'message': f'GPT 응답 생성 실패: {str(e)}'})}\n\n"
+async def get_grammar_feedback(prompt: str) -> str:
+    system_message = {
+        "role": "system",
+        "content": "You are a grammar expert providing concise feedback to improve writing quality."
+    }
+
+    messages = [
+        system_message,
+        {"role": "user", "content": f"Please provide grammar feedback for the following text: {prompt}"}
+    ]
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+        )
+        return response.choices[0].message.content
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
 

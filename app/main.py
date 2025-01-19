@@ -26,5 +26,4 @@ app.add_middleware(
     allow_methods=["*"],  # 허용할 HTTP 메서드 목록. '*'는 모든 메서드 허용.
     allow_headers=["*"],  # 허용할 헤더 목록. '*'는 모든 헤더 허용.
 )
-
 app.include_router(router)

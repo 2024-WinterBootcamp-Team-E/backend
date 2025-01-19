@@ -20,4 +20,9 @@ class UserLogin(BaseModel):
     email: str
     password: str
 
-
+class UserResponse(BaseModel):
+    email: str
+    nickname: str
+    user_image: str
+    class Config:
+        from_attributes = True
