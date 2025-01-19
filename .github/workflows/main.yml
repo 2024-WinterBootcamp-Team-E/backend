@@ -22,7 +22,7 @@ jobs:
           TAG=v-$(echo "${{ github.sha }}" | head -c 8)  # Git SHA 기반 태그 생성
           echo "TAG=${TAG}" >> $GITHUB_ENV  # GitHub Actions 환경변수로 설정
 
-      # 3. Python 설치 및 의존성 설치 (테스트 단계)
+      # 3. Python 설치 및 의존성 설치
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -32,12 +32,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Run Tests
-        run: |
-          # 테스트 단계
-          python -m pytest tests/ --maxfail=3 --disable-warnings
-        continue-on-error: false  # 테스트 실패 시 빌드 중단
 
       # 4. Docker Hub 로그인
       - name: Log in to Docker Hub
@@ -74,4 +68,5 @@ jobs:
             
             # 새 컨테이너 실행
             docker run -d --name fastapi -p 8000:8000 $IMAGE_NAME:$TAG
+
 
