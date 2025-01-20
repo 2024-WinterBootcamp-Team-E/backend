@@ -24,13 +24,20 @@ async def transcribe_audio(file_content_io: io.BytesIO,filename:str) -> str:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"STT 변환 실패: {str(e)}")
 
-async def get_gpt_response_limited(chat_id: int, prompt: str, mdb) -> str:
+async def get_gpt_response_limited(chat_id: int, prompt: str, subject:str, country:str, mdb) -> str:
     collection = mdb["chats"]
     result = collection.find_one({"chat_id": chat_id}, {"messages": {"$slice": -6}})
+    if country is '미국':
+        country = 'US'
+    else:
+        country = "UK"
     system_message = {
         "role": "system",
         "content": (
-            "You are an AI assistant that provides concise and natural responses. "
+            "You are an AI assistant that provides concise and natural responses tailored to the given subject and country. "
+            f"The current subject is: {subject}. The country is: {country}. "
+            "Use vocabulary and phrasing appropriate for the specified country: "
+            "For example, use 'trousers' for UK and 'pants' for US. "
             "Keep answers under 30 words, include follow-up questions, and maintain an engaging tone."
         )
     }
