@@ -53,6 +53,9 @@ def get_chatroom_detail(user_id: int, chat_id: int, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail="Chatroom not found")
     chat_response = Chatroomresponse.model_validate(chat)
     chat_history = get_chat_history(chat_id, mdb)
+    if not chat_history:
+        response_data = {"chat_info": chat_response,}
+        return ResultResponseModel(code=200, message="Chatroom retrieved successfully", data=response_data)
     response_data = {
         "chat_info": chat_response,
         "chat_history": chat_history.get("messages", [])  # MongoDB에서 messages 배열만 추출
@@ -63,12 +66,15 @@ def get_chatroom_detail(user_id: int, chat_id: int, db: Session = Depends(get_db
 @router.post("/{user_id}/chat", summary="채팅방생성", description="새로운 채팅방을 생성합니다.")
 def chat_with_voice(req: ChatRoomCreateRequest, user_id: int, db: Session = Depends(get_db),mdb: Database = Depends(get_mongo_db)):
     user = get_user(user_id, db)
+
     if not user:
         raise HTTPException(status_code=404, detail="사용자 없음")
     tts_id = CHARACTER_TTS_MAP.get(req.character_name)
     if not tts_id:
         raise HTTPException(status_code=400, detail="유효하지 않은 캐릭터 이름입니다.")
-
+    subject = ["travel", "business", "daily", "movie"]
+    if req.subject not in subject:
+        raise HTTPException(status_code=400, detail="유효하지 않은 주제 입니다.")
     new_chat = create_chatroom(req, user_id, db)
     create_chatroom_mongo(new_chat, mdb)
     return ResultResponseModel(code=200, message="채팅방 생성 완료", data=new_chat.chat_id)
