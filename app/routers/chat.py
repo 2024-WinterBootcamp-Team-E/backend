@@ -72,9 +72,6 @@ def chat_with_voice(req: ChatRoomCreateRequest, user_id: int, db: Session = Depe
     tts_id = CHARACTER_TTS_MAP.get(req.character_name)
     if not tts_id:
         raise HTTPException(status_code=400, detail="유효하지 않은 캐릭터 이름입니다.")
-    subject = ["travel", "business", "daily", "movie"]
-    if req.subject not in subject:
-        raise HTTPException(status_code=400, detail="유효하지 않은 주제 입니다.")
     new_chat = create_chatroom(req, user_id, db)
     create_chatroom_mongo(new_chat, mdb)
     return ResultResponseModel(code=200, message="채팅방 생성 완료", data=new_chat.chat_id)
@@ -88,6 +85,8 @@ async def create_bubble(chat_id: int,user_id: int, file: UploadFile, db: Session
     chat = get_chat(user_id=user_id, chat_id=chat_id, db=db)
     if not chat:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
-    event = event_generator(chat_id=chat_id, tts_id=chat.tts_id, file_content_io=io.BytesIO(await file.read()),filename=file.filename, mdb=mdb)
+    subject = chat.subject
+    country = chat.character_name
+    event = event_generator(chat_id=chat_id, tts_id=chat.tts_id, file_content_io=io.BytesIO(await file.read()),filename=file.filename, subject=subject, country=country, mdb=mdb)
     return StreamingResponse(event, media_type="text/event-stream")
 
