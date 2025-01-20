@@ -26,6 +26,9 @@ async def analyze_pronunciation_with_azure(text: str, audio_data: bytes):
 
     # 3) SpeechConfig 및 AudioConfig 설정
     speech_config = SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
+    speech_config.set_property(PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "10000")
+    speech_config.set_property(PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "10000")
+
     audio_config = AudioConfig(stream=audio_stream)
 
     # 4) PronunciationAssessment 설정
