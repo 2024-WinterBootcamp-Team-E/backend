@@ -11,5 +11,8 @@ class Feedback(BaseModel):
 
 class PronunciationResultResponse(BaseModel):
     accuracy: float
+    fluency: float
+    completeness: float
+    pron: float
     feedback: str
     content: str

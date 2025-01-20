@@ -40,7 +40,10 @@ def get_sentence(sentence_id: int, db: Session):
 
 def create_pronunciation_result(feedback: Feedback, sentence: Sentence):
     response_data = PronunciationResultResponse(
-        accuracy=float(feedback.accuracy),
+        accuracy=float(feedback.accuracy_score),
+        fluency= float(feedback.fluency_score),
+        completeness= float(feedback.completeness_score),
+        pron =  float(feedback.pron_score),
         feedback=str(feedback.pronunciation_feedback),
         content=str(sentence.content)
     )
