@@ -23,6 +23,6 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     email: str
     nickname: str
-    user_image: str
+    user_image: Optional[str]
     class Config:
         from_attributes = True
