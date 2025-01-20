@@ -3,15 +3,17 @@ import asyncio
 from fastapi import APIRouter, Depends, UploadFile, HTTPException
 from sqlalchemy.orm import Session
 from starlette.responses import StreamingResponse
-
-from app.database.session import get_db
+from app.database.session import get_db, get_mongo_async_db, get_mongo_db
 from app.config.azure.pronunciation_feedback import analyze_pronunciation_with_azure
 from app.schemas.ResultResponseModel import ResultResponseModel
-from app.services.feedback_service import get_value, get_avg_score
+from app.services.feedback_service import get_value, get_avg_score, preprocess_words, extract_weak_pronunciations, \
+    done_callback
 from app.models.sentence import Sentence
 from app.config.openAI.openai_service import get_pronunciation_feedback, sse_generator_wrapper
 from app.models.feedback import Feedback
 from app.services.user_service import get_user
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.database import Database
 
 router = APIRouter(
     prefix="/feedback",
@@ -24,39 +26,46 @@ async def analyze_pronunciation_endpoint(
         sentence_id: int,
         audio_file: UploadFile,
         db: Session = Depends(get_db),
+        mdb: AsyncIOMotorDatabase = Depends(get_mongo_async_db)
 ):
     try:
         sentence_entry = db.query(Sentence).filter_by(sentence_id=sentence_id, is_deleted=False).first()
         if not sentence_entry:
             raise HTTPException(status_code=404, detail="해당 문장을 찾을 수 없습니다.")
         text = sentence_entry.content
-        print(f"[LOG] Sentence Content: {text}")
+        #print(f"[LOG] Sentence Content: {text}")
         audio_data = await audio_file.read()
         azure_result = await analyze_pronunciation_with_azure(text, audio_data)
-        print(f"[LOG] Azure Result: {azure_result}")
-        json_string = None
-        result_properties = azure_result.get("result_properties", {})
-        print(f"[LOG] Available keys in result_properties: {list(result_properties.keys())}")
+        # print(f"[LOG] Azure Result: {azure_result}")
 
-        for key in result_properties:
-            if "JsonResult" in str(key):
-                json_string = result_properties[key]
-                break
-        if not json_string:
-            raise HTTPException(status_code=400, detail="Azure 응답에 JsonResult 데이터가 없습니다.")
+        nbest_list = azure_result.get("NBest")
+        if not nbest_list:
+            raise HTTPException(status_code=400, detail="NBest 데이터가 비어 있습니다.")
+        nbest_data = nbest_list[0]
+        words = nbest_data.get("Words")
 
+        if not words:
+            raise HTTPException(status_code=400, detail="Words 데이터가 비어 있습니다.")
+        processed_words = preprocess_words(words)
+
+        pron_assessment = nbest_data.get("PronunciationAssessment")
+        if not pron_assessment:
+            raise HTTPException(status_code=400, detail="PronunciationAssessment 데이터가 없습니다.")
         keys = ["AccuracyScore", "FluencyScore", "CompletenessScore", "PronScore"]
-        scores = {}
-        for key in keys:
-            try:
-                scores[key] = get_value(key, json_string)
-                print(f"[LOG] {key}: {scores[key]}")
-            except ValueError as e:
-                print(f"[ERROR] {e}")
-                raise HTTPException(status_code=400, detail=f"키 {key}를 찾을 수 없습니다.")
 
-        feedback_generator = get_pronunciation_feedback(azure_result)
+        #점수 추출
+        scores = {k: pron_assessment[k] for k in keys}
 
+        # 디버깅 로그
+        # for k, v in scores.items():
+        #     print(f"[LOG] {k}: {v}")
+
+        background_task = asyncio.create_task(
+            extract_weak_pronunciations(processed_words, user_id, mdb, threshold=100)
+        )
+        background_task.add_done_callback(done_callback)
+
+        feedback_generator = get_pronunciation_feedback(processed_words,text)
         wrapped_stream = sse_generator_wrapper(
             generator=feedback_generator,
             user_id=user_id,
@@ -81,3 +90,56 @@ def get_user_avg_score(user_id: int, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return ResultResponseModel(code=200, message="상황 문장 목록 조회 성공", data=feedbacks_score)
+
+
+@router.get("/{user_id}/weak_pronunciations")
+async def get_weak_pronunciations(user_id: int, db: Session = Depends(get_db), mdb: Database = Depends(get_mongo_db)):
+    """
+    사용자의 약한 음절 중 상위 5개의 음절과 관련 단어 반환
+    """
+    try:
+        user = get_user(user_id, db)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        # 1) MongoDB에서 사용자 약점 데이터 조회
+        user_data = mdb["user_weakness_data"].find_one({"user_id": user_id})
+
+        if not user_data or "weakness" not in user_data:
+            return ResultResponseModel(
+                code=404,
+                message="No weak pronunciations found for this user.",
+                data=None
+            )
+
+        # 2) 약점 데이터에서 count 기반으로 상위 5개의 음절 추출
+        weakness = user_data["weakness"]
+        sorted_syllables = sorted(
+            weakness.items(),
+            key=lambda item: item[1].get("count", 0),
+            reverse=True
+        )[:5]
+
+        # 3) 상위 5개의 음절 및 관련 단어를 준비
+        result = [
+            {
+                "syllable": syllable,
+                "count": data.get("count", 0),
+                "words": data.get("words", [])
+            }
+            for syllable, data in sorted_syllables
+        ]
+
+        # 4) 정상 응답 반환
+        return ResultResponseModel(
+            code=200,
+            message="약점 발음 반환 성공",
+            data={"user_id": user_id, "top_weak_pronunciations": result}
+        )
+
+    except Exception as e:
+        # 5) 에러 발생 시 응답
+        return ResultResponseModel(
+            code=500,
+            message="An error occurred.",
+            data={"error": str(e)}
+        )

@@ -84,7 +84,7 @@ async def get_grammar_feedback(prompt: str) -> str:
         return response.choices[0].message.content
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
-async def get_pronunciation_feedback(azure_response: dict) -> str:
+async def get_pronunciation_feedback(words: list, text:str) -> str:
     # 시스템 역할 설정
     system_message = {
         "role": "system",
@@ -95,17 +95,13 @@ async def get_pronunciation_feedback(azure_response: dict) -> str:
         )
     }
 
-    # Azure 응답 데이터를 메시지로 변환
-    azure_response_str = "\n".join(
-        f"{key}: {value}" for key, value in azure_response.items()
-    )
-
     # 메시지 초기화
     messages = [system_message]  # 시스템 메시지 추가
     messages.append({
         "role": "user",
         "content": (
-            f"{azure_response_str}\n\n"
+            f"사용자가 발음한 문장 {text}\n"
+            f"음절 피드백 {words}\n\n"
             "이 데이터를 바탕으로, 피드백을 작성해 주세요:\n"
             "1. 발음에서 문제가 있었던 단어를 찾아주세요.\n"
             "2. 문제가 되는 발음의 원인은 구체적으로 설명해 주고 개선방향을 알려주세요.\n"
