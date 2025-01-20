@@ -123,7 +123,7 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
         gpt_response_full = await gpt_tts_task
 
         # Step 4: Grammar Feedback
-        grammar_feedback = await generate_grammar_feedback(transcription)
+        grammar_feedback = await generate_grammar_feedback(transcription, country)
         yield f"data: {json.dumps({'step': 'grammar_feedback', 'content': grammar_feedback})}\n\n"
 
         # Step 5: Save to Database
@@ -151,9 +151,9 @@ async def generate_gpt_response(chat_id: int, transcription: str, subject:str, c
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"GPT 응답 생성 실패: {str(e)}")
 
-async def generate_grammar_feedback(transcription: str) -> str:
+async def generate_grammar_feedback(transcription: str, country:str) -> str:
     try:
-        return await get_grammar_feedback(prompt=transcription)
+        return await get_grammar_feedback(prompt=transcription, country=country)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
 

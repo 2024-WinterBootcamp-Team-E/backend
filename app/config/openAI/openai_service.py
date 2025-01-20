@@ -72,10 +72,20 @@ async def get_gpt_response_limited(chat_id: int, prompt: str, subject:str, count
     except Exception as e:
         yield f"data: {json.dumps({'step': 'error', 'message': f'GPT 응답 생성 실패: {str(e)}'})}\n\n"
 
-async def get_grammar_feedback(prompt: str) -> str:
+async def get_grammar_feedback(prompt: str, country:str) -> str:
+    if country is '미국':
+        country = 'US'
+    else:
+        country = 'UK'
     system_message = {
         "role": "system",
-        "content": "You are a grammar expert providing concise feedback to improve writing quality."
+        "content": (
+            "You are a grammar expert providing concise feedback to improve writing quality. "
+            f"Tailor your suggestions to the specified country: {country}. "
+            "Ensure grammar, spelling, and word choice are appropriate for the country. "
+            "For example, use 'trousers' for UK and 'pants' for US, or 'trainers' for UK and 'sneakers' for US. "
+            "Keep your feedback clear, actionable, and under 50 words."
+        )
     }
 
     messages = [
