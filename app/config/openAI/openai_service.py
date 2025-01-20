@@ -27,7 +27,7 @@ async def transcribe_audio(file_content_io: io.BytesIO,filename:str) -> str:
 async def get_gpt_response_limited(chat_id: int, prompt: str, subject:str, country:str, mdb) -> str:
     collection = mdb["chats"]
     result = collection.find_one({"chat_id": chat_id}, {"messages": {"$slice": -6}})
-    if country is '미국':
+    if country == '미국':
         country = 'US'
     else:
         country = "UK"
@@ -73,7 +73,7 @@ async def get_gpt_response_limited(chat_id: int, prompt: str, subject:str, count
         yield f"data: {json.dumps({'step': 'error', 'message': f'GPT 응답 생성 실패: {str(e)}'})}\n\n"
 
 async def get_grammar_feedback(prompt: str, country:str) -> str:
-    if country is '미국':
+    if country == '미국':
         country = 'US'
     else:
         country = 'UK'
