@@ -85,8 +85,8 @@ async def create_bubble(chat_id: int,user_id: int, file: UploadFile, db: Session
     chat = get_chat(user_id=user_id, chat_id=chat_id, db=db)
     if not chat:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
-    subject = chat.subject
+    title = chat.title
     country = chat.character_name
-    event = event_generator(chat_id=chat_id, tts_id=chat.tts_id, file_content_io=io.BytesIO(await file.read()),filename=file.filename, subject=subject, country=country, mdb=mdb)
+    event = event_generator(chat_id=chat_id, tts_id=chat.tts_id, file_content_io=io.BytesIO(await file.read()),filename=file.filename, title=title, country=country, mdb=mdb)
     return StreamingResponse(event, media_type="text/event-stream")
 
