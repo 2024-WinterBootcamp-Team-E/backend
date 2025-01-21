@@ -22,27 +22,17 @@ jobs:
           TAG=v-$(echo "${{ github.sha }}" | head -c 8)  # Git SHA 기반 태그 생성
           echo "TAG=${TAG}" >> $GITHUB_ENV  # GitHub Actions 환경변수로 설정
 
-      # 3. PR 번호와 빌드 넘버 기반 태그 생성 
+      # 3. PR 번호 추출 (github.event.pull_request.number 사용)
       - name: Show pull request number
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           echo "PR Number: ${{ github.event.pull_request.number }}"
 
-      - name: Get PR Number for Main Branch Merge
-        id: get_pr_number
-        if: github.ref == 'refs/heads/main'
-        run: |
-          PR_NUMBER=$(gh pr list --repo ${{ github.repository }} --state closed --json number,mergeCommit --jq ".[] | select(.mergeCommit.oid == \"${{ github.sha }}\") | .number")
-          echo "PR_NUMBER=${PR_NUMBER}"
-          echo "PR_NUMBER"="${PR_NUMBER}" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Set Docker Image Tag based on PR Number and Run Number
         id: set_docker_image_tag
         run: |
           if [ "${{ github.ref_name }}" == "main" ]; then
-            DOCKER_IMAGE_TAG="1.1.${{ steps.get_pr_number.outputs.PR_NUMBER }}"
+            DOCKER_IMAGE_TAG="1.1.${{ github.event.pull_request.number }}"
           else
             DOCKER_IMAGE_TAG="0.${{ github.event.pull_request.number }}.${{ github.run_number }}"
           fi
