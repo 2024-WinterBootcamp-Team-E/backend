@@ -106,7 +106,7 @@ def get_avg_score(user_id: int, db: Session) -> Dict[str, Optional[float]]:
 
     return result
 
-async def extract_weak_pronunciations(processed_words, user_id: int, mdb:AsyncIOMotorDatabase, threshold=99):
+async def extract_weak_pronunciations(processed_words, user_id: int, mdb:AsyncIOMotorDatabase, threshold):
     try:
         # 1) 약한 음절을 담을 리스트 (디버깅, 로깅 용도)
         weak_syllables = []

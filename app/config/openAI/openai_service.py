@@ -159,6 +159,7 @@ async def sse_generator_wrapper(
     generator로부터 chunk를 받으면서 SSE 형식("data: ...\n\n")으로 클라이언트에게 전송한다.
     스트리밍이 끝난 뒤 누적된 전체 피드백을 DB에 저장한다.
     """
+    yield f"pronscore: {scores['PronScore']}\n\n"
     feedback_accumulator = []
     try:
         async for chunk in generator:
