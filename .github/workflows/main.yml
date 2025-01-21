@@ -15,14 +15,41 @@ jobs:
       # 1. 코드 체크아웃
       - uses: actions/checkout@v3
 
-      # 2. Git SHA로 태그 생성
+      # 2. Git 
       - name: Generate Tag
-        id: tag  # ID를 통해 이후 사용할 수 있음
+        id: tag
         run: |
           TAG=v-$(echo "${{ github.sha }}" | head -c 8)  # Git SHA 기반 태그 생성
           echo "TAG=${TAG}" >> $GITHUB_ENV  # GitHub Actions 환경변수로 설정
 
-      # 3. Python 설치 및 의존성 설치
+      # 3. PR 번호와 빌드 넘버 기반 태그 생성 
+      - name: Show pull request number
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo "PR Number: ${{ github.event.pull_request.number }}"
+
+      - name: Get PR Number for Main Branch Merge
+        id: get_pr_number
+        if: github.ref == 'refs/heads/main'
+        run: |
+          PR_NUMBER=$(gh pr list --repo ${{ github.repository }} --state closed --json number,mergeCommit --jq ".[] | select(.mergeCommit.oid == \"${{ github.sha }}\") | .number")
+          echo "PR_NUMBER=${PR_NUMBER}"
+          echo "PR_NUMBER"="${PR_NUMBER}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set Docker Image Tag based on PR Number and Run Number
+        id: set_docker_image_tag
+        run: |
+          if [ "${{ github.ref_name }}" == "main" ]; then
+            DOCKER_IMAGE_TAG="1.1.${{ steps.get_pr_number.outputs.PR_NUMBER }}"
+          else
+            DOCKER_IMAGE_TAG="0.${{ github.event.pull_request.number }}.${{ github.run_number }}"
+          fi
+          echo "Docker Image Tag: $DOCKER_IMAGE_TAG"
+          echo "DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG}" >> $GITHUB_ENV
+
+      # 4. Python 설치 및 의존성 설치 (테스트 단계)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -33,22 +60,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4. Docker Hub 로그인
+      # 5. Run Tests
+      - name: Run Tests
+        run: |
+          python -m pytest tests/ --maxfail=3 --disable-warnings
+        continue-on-error: false  # 테스트 실패 시 빌드 중단
+
+      # 6. Docker Hub 로그인
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 5. Docker 이미지 빌드 및 푸시
+      # 7. Docker 이미지 빌드 및 푸시
       - name: Build and push Docker image
         env:
-          IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/fastapi-app
+          DOCKER_IMAGE_TAG: ${{ steps.set_docker_image_tag.outputs.DOCKER_IMAGE_TAG }}
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/fastapi-app:$TAG .
-          docker push ${{ secrets.DOCKER_USERNAME }}/fastapi-app:$TAG
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/fastapi-app:$DOCKER_IMAGE_TAG .
+          docker push ${{ secrets.DOCKER_USERNAME }}/fastapi-app:$DOCKER_IMAGE_TAG
 
-      # 6. 원격 서버에 배포
+      # 8. 원격 서버에 배포
       - name: Deploy to server
         uses: appleboy/ssh-action@master
         with:
@@ -57,7 +90,7 @@ jobs:
           key: ${{ secrets.PRIVATE_KEY }}
           script: |
             IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/fastapi-app
-            TAG=${{ env.TAG }}
+            TAG=${{ env.DOCKER_IMAGE_TAG }}
             
             echo "Deploying Docker image: $IMAGE_NAME:$TAG"
             
@@ -68,5 +101,4 @@ jobs:
             
             # 새 컨테이너 실행
             docker run -d --name fastapi -p 8000:8000 $IMAGE_NAME:$TAG
-
 

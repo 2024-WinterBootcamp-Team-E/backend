@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.config.constants import CHARACTER_TTS_MAP
 from app.config.elevenlabs.text_to_speech_stream import generate_tts_audio_async
 from app.config.openAI.openai_service import get_gpt_response_limited, get_grammar_feedback, transcribe_audio
-from app.database.session import get_mongo_db
+from app.database.session import get_mongo_db, get_db
 from app.models.chat import Chat
 from app.schemas.chat import ChatRoomCreateRequest, Chatroomresponse
 from datetime import datetime
@@ -62,7 +62,7 @@ def create_chatroom_mongo(chat, mdb:Database):
     mdb["chats"].insert_one({"chat_id": chat.chat_id, "messages":[]})
 
 
-async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO, filename: str, mdb: Database = Depends(get_mongo_db)):
+async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO, filename: str, subject:str, country:str, mdb: Database = Depends(get_mongo_db)):
     try:
         # Step 1: Transcription
         transcription = await generate_transcription(file_content_io, filename)
@@ -74,7 +74,7 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
         async def process_gpt_and_tts():
             gpt_response_full = ""
             buffer = ""  # GPT 청크를 버퍼링
-            async for gpt_chunk in generate_gpt_response(chat_id, transcription, mdb):
+            async for gpt_chunk in generate_gpt_response(chat_id, transcription, subject, country, mdb):
                 gpt_response_full += gpt_chunk
                 buffer += gpt_chunk
 
@@ -123,7 +123,7 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
         gpt_response_full = await gpt_tts_task
 
         # Step 4: Grammar Feedback
-        grammar_feedback = await generate_grammar_feedback(transcription)
+        grammar_feedback = await generate_grammar_feedback(transcription, country)
         yield f"data: {json.dumps({'step': 'grammar_feedback', 'content': grammar_feedback})}\n\n"
 
         # Step 5: Save to Database
@@ -141,19 +141,19 @@ async def generate_transcription(file_content_io: io.BytesIO, filename: str) -> 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"STT 변환 실패: {str(e)}")
 
-async def generate_gpt_response(chat_id: int, transcription: str, mdb: Database) -> str:
+async def generate_gpt_response(chat_id: int, transcription: str, subject:str, country:str, mdb: Database) -> str:
     try:
         gpt_response_full = ""
-        gpt_response = get_gpt_response_limited(chat_id=chat_id, prompt=transcription, mdb=mdb)
+        gpt_response = get_gpt_response_limited(chat_id=chat_id, prompt=transcription, subject=subject, country=country, mdb=mdb)
         async for chunk in gpt_response:
             gpt_response_full += chunk
             yield chunk
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"GPT 응답 생성 실패: {str(e)}")
 
-async def generate_grammar_feedback(transcription: str) -> str:
+async def generate_grammar_feedback(transcription: str, country:str) -> str:
     try:
-        return await get_grammar_feedback(prompt=transcription)
+        return await get_grammar_feedback(prompt=transcription, country=country)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
 

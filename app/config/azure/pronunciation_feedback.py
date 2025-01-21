@@ -5,10 +5,12 @@ from azure.cognitiveservices.speech import (
     SpeechRecognizer,
     PronunciationAssessmentConfig,
     PronunciationAssessmentGranularity,
-    PronunciationAssessmentGradingSystem
+    PronunciationAssessmentGradingSystem,
+    PropertyId
 )
 from azure.cognitiveservices.speech.audio import PushAudioInputStream
 from dotenv import load_dotenv
+import json
 
 load_dotenv()
 AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY")
@@ -37,7 +39,8 @@ async def analyze_pronunciation_with_azure(text: str, audio_data: bytes):
 
     # 5) 발음 평가
     result = recognizer.recognize_once()
+    pronunciation_assessment_result_json = result.properties.get(
+        PropertyId.SpeechServiceResponse_JsonResult)
+    # print(f"[LOG] JSON Result: {pronunciation_assessment_result_json}")
     # 6) 상세 정보 추출 및 반환
-    return {
-        "result_properties": dict(result.properties) # 결과 속성을 딕셔너리로 변환
-    }
+    return json.loads(pronunciation_assessment_result_json)

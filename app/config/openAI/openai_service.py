@@ -24,13 +24,20 @@ async def transcribe_audio(file_content_io: io.BytesIO,filename:str) -> str:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"STT 변환 실패: {str(e)}")
 
-async def get_gpt_response_limited(chat_id: int, prompt: str, mdb) -> str:
+async def get_gpt_response_limited(chat_id: int, prompt: str, subject:str, country:str, mdb) -> str:
     collection = mdb["chats"]
     result = collection.find_one({"chat_id": chat_id}, {"messages": {"$slice": -6}})
+    if country == '미국':
+        country = 'US'
+    else:
+        country = "UK"
     system_message = {
         "role": "system",
         "content": (
-            "You are an AI assistant that provides concise and natural responses. "
+            "You are an AI assistant that provides concise and natural responses tailored to the given subject and country. "
+            f"The current subject is: {subject}. The country is: {country}. "
+            "Use vocabulary and phrasing appropriate for the specified country: "
+            "For example, use 'trousers' for UK and 'pants' for US. "
             "Keep answers under 30 words, include follow-up questions, and maintain an engaging tone."
         )
     }
@@ -65,10 +72,20 @@ async def get_gpt_response_limited(chat_id: int, prompt: str, mdb) -> str:
     except Exception as e:
         yield f"data: {json.dumps({'step': 'error', 'message': f'GPT 응답 생성 실패: {str(e)}'})}\n\n"
 
-async def get_grammar_feedback(prompt: str) -> str:
+async def get_grammar_feedback(prompt: str, country:str) -> str:
+    if country == '미국':
+        country = 'US'
+    else:
+        country = 'UK'
     system_message = {
         "role": "system",
-        "content": "You are a grammar expert providing concise feedback to improve writing quality."
+        "content": (
+            "You are a grammar expert providing concise feedback to improve writing quality. "
+            f"Tailor your suggestions to the specified country: {country}. "
+            "Ensure grammar, spelling, and word choice are appropriate for the country. "
+            "For example, use 'trousers' for UK and 'pants' for US, or 'trainers' for UK and 'sneakers' for US. "
+            "Keep your feedback clear, actionable, and under 50 words."
+        )
     }
 
     messages = [
@@ -84,7 +101,7 @@ async def get_grammar_feedback(prompt: str) -> str:
         return response.choices[0].message.content
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
-async def get_pronunciation_feedback(azure_response: dict) -> str:
+async def get_pronunciation_feedback(words: list, text:str) -> str:
     # 시스템 역할 설정
     system_message = {
         "role": "system",
@@ -95,17 +112,13 @@ async def get_pronunciation_feedback(azure_response: dict) -> str:
         )
     }
 
-    # Azure 응답 데이터를 메시지로 변환
-    azure_response_str = "\n".join(
-        f"{key}: {value}" for key, value in azure_response.items()
-    )
-
     # 메시지 초기화
     messages = [system_message]  # 시스템 메시지 추가
     messages.append({
         "role": "user",
         "content": (
-            f"{azure_response_str}\n\n"
+            f"사용자가 발음한 문장 {text}\n"
+            f"음절 피드백 {words}\n\n"
             "이 데이터를 바탕으로, 피드백을 작성해 주세요:\n"
             "1. 발음에서 문제가 있었던 단어를 찾아주세요.\n"
             "2. 문제가 되는 발음의 원인은 구체적으로 설명해 주고 개선방향을 알려주세요.\n"
