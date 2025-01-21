@@ -36,8 +36,9 @@ async def analyze_pronunciation_endpoint(
         #print(f"[LOG] Sentence Content: {text}")
         audio_data = await audio_file.read()
         azure_result = await analyze_pronunciation_with_azure(text, audio_data)
-        # print(f"[LOG] Azure Result: {azure_result}")
-
+        print(f"[LOG] Azure Result: {azure_result.get('RecognitionStatus')}")
+        if azure_result.get('RecognitionStatus') != 'Success':
+            raise HTTPException(status_code=400, detail="인식 실패: 다시 시도해 주세요.")
         nbest_list = azure_result.get("NBest")
         if not nbest_list:
             raise HTTPException(status_code=400, detail="NBest 데이터가 비어 있습니다.")
@@ -55,13 +56,13 @@ async def analyze_pronunciation_endpoint(
 
         #점수 추출
         scores = {k: pron_assessment[k] for k in keys}
-
+        score = pron_assessment["PronScore"]
         # 디버깅 로그
         # for k, v in scores.items():
         #     print(f"[LOG] {k}: {v}")
 
         background_task = asyncio.create_task(
-            extract_weak_pronunciations(processed_words, user_id, mdb, threshold=100)
+            extract_weak_pronunciations(processed_words, user_id, mdb, threshold=50)
         )
         background_task.add_done_callback(done_callback)
 
@@ -77,6 +78,7 @@ async def analyze_pronunciation_endpoint(
             wrapped_stream,                # async generator
             media_type="text/event-stream" # SSE MIME
         )
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
