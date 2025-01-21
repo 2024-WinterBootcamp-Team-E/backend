@@ -46,7 +46,7 @@ def dailytask(db: Session, user_id: int, selected_day: datetime):
         # DailyFeedback 객체 생성
         daily_tasks = DailyFeedback(
             user_id=user_id,
-            updated_at=datetime.now(),
+            selected_day=selected_day,
             feedbacks_count=feedbacks_count,
             chatrooms_count=chatrooms_count,
             total_count=total_count,

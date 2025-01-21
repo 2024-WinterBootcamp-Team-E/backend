@@ -6,7 +6,7 @@ from app.schemas.chat import Chatroomresponse
 
 class DailyFeedback(BaseModel):
     user_id: int
-    updated_at: datetime
+    selected_day: datetime
     feedbacks_count: int  # 필수 필드로 설정
     chatrooms_count: int  # 필수 필드로 설정
     total_count: int  # 필수 필드로 설정
