@@ -22,30 +22,12 @@ jobs:
           TAG=v-$(echo "${{ github.sha }}" | head -c 8)  # Git SHA 기반 태그 생성
           echo "TAG=${TAG}" >> $GITHUB_ENV  # GitHub Actions 환경변수로 설정
 
-      # 3. PR 번호와 빌드 넘버 기반 태그 생성
-      - name: Set Docker Image Tag based on PR Number and Run Number
+      # 3. Docker 이미지 태그를 Git SHA 기반으로 설정
+      - name: Set Docker Image Tag
         id: set_docker_image_tag
         run: |
-          # 기본값 설정 및 PR 번호 처리
-          if [ -z "${{ github.event.pull_request.number }}" ]; then
-            DOCKER_IMAGE_TAG="default-tag-${{ github.sha }}"
-          else
-            if [ "${{ github.ref_name }}" == "main" ]; then
-              DOCKER_IMAGE_TAG="1.1.${{ github.event.pull_request.number }}"
-            else
-              DOCKER_IMAGE_TAG="0.${{ github.event.pull_request.number }}.${{ github.run_number }}"
-            fi
-          fi
-          
-          # DOCKER_IMAGE_TAG 값 확인
+          DOCKER_IMAGE_TAG="v-${{ github.sha }}"
           echo "Docker Image Tag: $DOCKER_IMAGE_TAG"
-          
-          # 빈 값이면 기본값 설정
-          if [ -z "$DOCKER_IMAGE_TAG" ]; then
-            DOCKER_IMAGE_TAG="default-tag-${{ github.sha }}"
-          fi
-          
-          # 환경 변수로 설정
           echo "DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG}" >> $GITHUB_ENV
 
       # 4. Python 설치 및 의존성 설치
@@ -68,10 +50,7 @@ jobs:
 
       # 6. Docker 이미지 빌드 및 푸시
       - name: Build and push Docker image
-        env:
-          DOCKER_IMAGE_TAG: ${{ steps.set_docker_image_tag.outputs.DOCKER_IMAGE_TAG }}
         run: |
-          # 최종적으로 태그를 확인
           echo "Using Docker Image Tag: $DOCKER_IMAGE_TAG"
           docker build -t ${{ secrets.DOCKER_USERNAME }}/fastapi-app:$DOCKER_IMAGE_TAG .
           docker push ${{ secrets.DOCKER_USERNAME }}/fastapi-app:$DOCKER_IMAGE_TAG
@@ -96,3 +75,4 @@ jobs:
             
             # 새 컨테이너 실행
             docker run -d --name fastapi -p 8000:8000 $IMAGE_NAME:$TAG
+
