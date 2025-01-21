@@ -22,19 +22,18 @@ jobs:
           TAG=v-$(echo "${{ github.sha }}" | head -c 8)  # Git SHA 기반 태그 생성
           echo "TAG=${TAG}" >> $GITHUB_ENV  # GitHub Actions 환경변수로 설정
 
-      # 3. PR 번호 추출 (github.event.pull_request.number 사용)
-      - name: Show pull request number
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          echo "PR Number: ${{ github.event.pull_request.number }}"
-
+      # 3. PR 번호와 빌드 넘버 기반 태그 생성
       - name: Set Docker Image Tag based on PR Number and Run Number
         id: set_docker_image_tag
         run: |
-          if [ "${{ github.ref_name }}" == "main" ]; then
-            DOCKER_IMAGE_TAG="1.1.${{ github.event.pull_request.number }}"
+          if [ -z "${{ github.event.pull_request.number }}" ]; then
+            DOCKER_IMAGE_TAG="default-tag-${{ github.sha }}"
           else
-            DOCKER_IMAGE_TAG="0.${{ github.event.pull_request.number }}.${{ github.run_number }}"
+            if [ "${{ github.ref_name }}" == "main" ]; then
+              DOCKER_IMAGE_TAG="1.1.${{ github.event.pull_request.number }}"
+            else
+              DOCKER_IMAGE_TAG="0.${{ github.event.pull_request.number }}.${{ github.run_number }}"
+            fi
           fi
           echo "Docker Image Tag: $DOCKER_IMAGE_TAG"
           echo "DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG}" >> $GITHUB_ENV
@@ -85,4 +84,3 @@ jobs:
             
             # 새 컨테이너 실행
             docker run -d --name fastapi -p 8000:8000 $IMAGE_NAME:$TAG
-
