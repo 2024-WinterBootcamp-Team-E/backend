@@ -20,7 +20,7 @@ def get_chatrooms(user_id: int, db: Session, skip: int = 0, limit: int = 100):
             chat_id=chatroom.chat_id,
             user_id=chatroom.user_id,
             score=chatroom.score,
-            subject=chatroom.subject,
+            title=chatroom.title,
             character_name=chatroom.character_name,
             tts_id=chatroom.tts_id,
             created_at=chatroom.created_at,
@@ -47,7 +47,7 @@ def create_chatroom(req: ChatRoomCreateRequest, user_id: int, db: Session):
         raise HTTPException(status_code=400, detail="유효하지 않은 캐릭터 이름입니다.")
     new_chat = Chat(
         user_id=user_id,
-        subject=req.subject,
+        title=req.title,
         character_name=req.character_name,
         tts_id=tts_id,
         created_at=datetime.now(),
@@ -62,7 +62,7 @@ def create_chatroom_mongo(chat, mdb:Database):
     mdb["chats"].insert_one({"chat_id": chat.chat_id, "messages":[]})
 
 
-async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO, filename: str, subject:str, country:str, mdb: Database = Depends(get_mongo_db)):
+async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO, filename: str, title:str, country:str, mdb: Database = Depends(get_mongo_db)):
     try:
         # Step 1: Transcription
         transcription = await generate_transcription(file_content_io, filename)
@@ -74,7 +74,7 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
         async def process_gpt_and_tts():
             gpt_response_full = ""
             buffer = ""  # GPT 청크를 버퍼링
-            async for gpt_chunk in generate_gpt_response(chat_id, transcription, subject, country, mdb):
+            async for gpt_chunk in generate_gpt_response(chat_id, transcription, title, country, mdb):
                 gpt_response_full += gpt_chunk
                 buffer += gpt_chunk
 
@@ -105,8 +105,9 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
             await send_queue.put(None)  # 작업 종료 신호
             return gpt_response_full
 
-        # GPT와 TTS 작업을 비동기로 실행
+        # 두 작업을 병렬로 실행
         gpt_tts_task = asyncio.create_task(process_gpt_and_tts())
+        grammar_task = asyncio.create_task(generate_grammar_feedback(transcription, country))
 
         # Queue에서 데이터를 클라이언트로 전송
         while True:
@@ -119,15 +120,14 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
                 yield f"data: {json.dumps({'step': 'error', 'message': 'Timeout occurred while processing data'})}\n\n"
                 break
 
-        # 전체 GPT 응답 가져오기
+        # GPT와 TTS 작업 완료 대기
         gpt_response_full = await gpt_tts_task
 
-        # Step 4: Grammar Feedback
-        grammar_feedback = await generate_grammar_feedback(transcription, country)
+        # Grammar 피드백 작업 완료 대기
+        grammar_feedback = await grammar_task
         yield f"data: {json.dumps({'step': 'grammar_feedback', 'content': grammar_feedback})}\n\n"
 
         # Step 5: Save to Database
-
         save_to_database(chat_id, transcription, gpt_response_full, grammar_feedback, mdb)
 
     except HTTPException as e:
@@ -141,10 +141,10 @@ async def generate_transcription(file_content_io: io.BytesIO, filename: str) -> 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"STT 변환 실패: {str(e)}")
 
-async def generate_gpt_response(chat_id: int, transcription: str, subject:str, country:str, mdb: Database) -> str:
+async def generate_gpt_response(chat_id: int, transcription: str, title:str, country:str, mdb: Database) -> str:
     try:
         gpt_response_full = ""
-        gpt_response = get_gpt_response_limited(chat_id=chat_id, prompt=transcription, subject=subject, country=country, mdb=mdb)
+        gpt_response = get_gpt_response_limited(chat_id=chat_id, prompt=transcription, title=title, country=country, mdb=mdb)
         async for chunk in gpt_response:
             gpt_response_full += chunk
             yield chunk
