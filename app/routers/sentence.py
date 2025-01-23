@@ -16,7 +16,7 @@ def fetch_sentences(situation: str, db: Session = Depends(get_db)):
     sentences = get_sentences_by_situation(situation, db)
     if not sentences:
         raise HTTPException(status_code=404, detail=f"No sentences found for situation: {situation}")
-    response_data = [sentence.content for sentence in sentences]
+    response_data = [{"sentence_id": sentence.sentence_id, "content": sentence.content} for sentence in sentences]
     return ResultResponseModel(code=200, message="상황 문장 목록 조회 성공", data=response_data)
 
 @router.get("/{sentence_id}", summary="문장 조회", description="문장 ID를 기반으로 문장을 조회합니다.")
