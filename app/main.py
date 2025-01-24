@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from app.database.session import Base, engine
 from app.routers.api import router
 from app.database.session import lifespan
-#from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
 import app.models
 
@@ -15,8 +15,8 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan  # MongoDB Lifespan 관리 연결
 )
-#instrumentator = Instrumentator().instrument(app)
-#instrumentator.expose(app, include_in_schema=False)
+instrumentator = Instrumentator().instrument(app)
+instrumentator.expose(app, include_in_schema=False) # 메트릭 정보 확인
 
 # CORS 설정 추가
 app.add_middleware(

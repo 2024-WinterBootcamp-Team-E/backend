@@ -7,7 +7,7 @@ from app.database.session import get_db, get_mongo_async_db, get_mongo_db
 from app.config.azure.pronunciation_feedback import analyze_pronunciation_with_azure
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.feedback_service import get_value, get_avg_score, preprocess_words, extract_weak_pronunciations, \
-    done_callback
+    done_callback, change_audio_file
 from app.models.sentence import Sentence
 from app.config.openAI.openai_service import get_pronunciation_feedback, sse_generator_wrapper
 from app.models.feedback import Feedback
@@ -33,8 +33,9 @@ async def analyze_pronunciation_endpoint(
         if not sentence_entry:
             raise HTTPException(status_code=404, detail="해당 문장을 찾을 수 없습니다.")
         text = sentence_entry.content
-        #print(f"[LOG] Sentence Content: {text}")
-        audio_data = await audio_file.read()
+        #print(f"[LOG] Sentence Content: {text}
+        change_audio = change_audio_file(audio_file)
+        audio_data = await change_audio.read()
         azure_result = await analyze_pronunciation_with_azure(text, audio_data)
         print(f"[LOG] Azure Result: {azure_result.get('RecognitionStatus')}")
         if azure_result.get('RecognitionStatus') != 'Success':

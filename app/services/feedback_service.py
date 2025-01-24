@@ -6,9 +6,10 @@ from app.schemas.user import UserWithFeedback
 from app.models.user import User
 import json
 from app.config.azure.pronunciation_feedback import analyze_pronunciation_with_azure
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from app.config.openAI.openai_service import get_pronunciation_feedback
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pydub import AudioSegment
 import asyncio
 
 def get_feedbacks(user: User, db: Session):
@@ -174,3 +175,21 @@ def done_callback(task: asyncio.Task):
         print("[LOG] 약점 발음분석이 정상적으로 종료되었습니다.")
     except Exception as e:
         print(f"[ERROR] 약점 발음분석 중 오류 발생: {e}")
+
+
+def change_audio_file(audio_file: UploadFile) -> bytes:
+    try:
+        # UploadFile의 파일 데이터를 AudioSegment로 변환
+        audio = AudioSegment.from_file(audio_file.file)
+
+        # 샘플링 속도, 채널, 샘플 포맷 설정
+        audio = audio.set_frame_rate(16000)  # 16kHz
+        audio = audio.set_channels(1)       # 모노
+        audio = audio.set_sample_width(2)   # 16비트 (2 bytes per sample)
+
+        # 변환된 데이터를 바이트로 반환
+        audio_bytes = audio.export(format="wav").read()
+        return audio_bytes
+    except Exception as e:
+        print(f"[ERROR] Audio conversion failed: {e}")
+        raise HTTPException(status_code=400, detail="오디오 변환 중 오류가 발생했습니다.")
