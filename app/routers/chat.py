@@ -74,7 +74,8 @@ def chat_with_voice(req: ChatRoomCreateRequest, user_id: int, db: Session = Depe
         raise HTTPException(status_code=400, detail="유효하지 않은 캐릭터 이름입니다.")
     new_chat = create_chatroom(req, user_id, db)
     create_chatroom_mongo(new_chat, mdb)
-    return ResultResponseModel(code=200, message="채팅방 생성 완료", data=new_chat.chat_id)
+    chatrooms = get_chatrooms(user_id=user_id, db=db)
+    return ResultResponseModel(code=200, message = f"채팅방 생성 완료: {new_chat.chat_id}", data=chatrooms)
 
 
 @router.post("/{user_id}/{chat_id}", summary="대화 생성", description="STT를 통해 GPT와 대화를 생성합니다.",response_class=StreamingResponse)
