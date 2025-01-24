@@ -35,6 +35,6 @@ def get_dailytask(user_id:int, selected_day:datetime, db: Session=Depends(get_db
     return ResultResponseModel(code=200, message="당일 학습 정보 조회 성공", data=dailytask_response)
 
 
-@app.get("/health")
+@router.get("/health")
 async def health_check():
     return {"status": "healthy"}
