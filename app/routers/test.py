@@ -33,3 +33,8 @@ def get_dailytask(user_id:int, selected_day:datetime, db: Session=Depends(get_db
         raise HTTPException(status_code=404, detail="User not found")
     dailytask_response = dailytask(db, user_id, selected_day)
     return ResultResponseModel(code=200, message="당일 학습 정보 조회 성공", data=dailytask_response)
+
+
+@router.get("/health")
+async def health_check():
+    return {"status": "healthy"}
