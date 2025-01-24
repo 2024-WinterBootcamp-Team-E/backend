@@ -66,4 +66,5 @@ jobs:
             docker rm fastapi || true
             
             # 새 컨테이너 실행
-            docker run -d --name fastapi -p 8000:8000 $IMAGE_NAME:$TAG
+            docker run -d --name fastapi -p 8000:8000 --env-file ~/.env $IMAGE_NAME:$TAG
+
