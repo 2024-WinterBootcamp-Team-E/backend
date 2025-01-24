@@ -35,8 +35,7 @@ async def analyze_pronunciation_endpoint(
         text = sentence_entry.content
         #print(f"[LOG] Sentence Content: {text}
         change_audio = change_audio_file(audio_file)
-        audio_data = await change_audio.read()
-        azure_result = await analyze_pronunciation_with_azure(text, audio_data)
+        azure_result = await analyze_pronunciation_with_azure(text, change_audio)
         print(f"[LOG] Azure Result: {azure_result.get('RecognitionStatus')}")
         if azure_result.get('RecognitionStatus') != 'Success':
             raise HTTPException(status_code=400, detail="인식 실패: 다시 시도해 주세요.")

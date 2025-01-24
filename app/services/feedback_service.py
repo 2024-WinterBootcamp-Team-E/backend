@@ -1,3 +1,4 @@
+import io
 from typing import Optional, Dict
 from sqlalchemy import desc, func, cast, Date
 from sqlalchemy.orm import Session, joinedload
@@ -188,8 +189,10 @@ def change_audio_file(audio_file: UploadFile) -> bytes:
         audio = audio.set_sample_width(2)   # 16비트 (2 bytes per sample)
 
         # 변환된 데이터를 바이트로 반환
-        audio_bytes = audio.export(format="wav").read()
-        return audio_bytes
+        wav_io = io.BytesIO()
+        audio.export(wav_io, format="wav")
+        wav_io.seek(0)  # 파일 포인터를 처음으로 이동
+        return wav_io.read()  # Bytes로 반환
     except Exception as e:
         print(f"[ERROR] Audio conversion failed: {e}")
         raise HTTPException(status_code=400, detail="오디오 변환 중 오류가 발생했습니다.")
