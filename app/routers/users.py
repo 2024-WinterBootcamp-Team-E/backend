@@ -6,10 +6,10 @@ from app.database.session import get_db
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.schemas.user import UserUpdate, UserCreate, UserLogin, UserResponse
 from app.models.user import User
-from app.services.user_service import update_user, create_user_with_feedback, calculate_attendance, calculate_today_attendance
+from app.services.user_service import update_user, create_user_with_feedback, attendance_data, attendance_today
 from app.services.user_service import user_soft_delete, user_hard_delete, get_user, signup_user
 from datetime import datetime, timedelta
-
+import json
 router = APIRouter(
     prefix="/user",
     tags=["User"]
@@ -82,48 +82,22 @@ async def profile_image_upload(file: UploadFile, user_id: int, db: Session = Dep
         db.rollback()
         raise HTTPException(status_code=500, detail=f"데이터베이스 업데이트 실패: {str(e)}")
 
-data_cache = {}
 @router.get("/attendance/{user_id}")
 def get_recent_attendance(user_id: int, db: Session = Depends(get_db)):
-    user = get_user(user_id, db)
-    if user is None:
+    user = db.query(User).filter_by(user_id=user_id).first()
+    if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    today = datetime.utcnow().date()
+    # 초기화 (필요 시)
+    if not user.attendance_data:
+        attendance_data(db, user_id)
 
-    if user_id in data_cache:
-        cached_data = data_cache[user_id]
-        last_calculated_date = cached_data["last_date"]
-        attendance_status_list = cached_data["attendance"]
+    # 당일 데이터 업데이트
+    attendance_today(db, user_id)
 
-        today_status = calculate_today_attendance(db, user_id)
-
-        if len(attendance_status_list) > 0 and last_calculated_date == today:
-            attendance_status_list[-1] = today_status  # 오늘 데이터 업데이트
-        else:
-            attendance_status_list.append(today_status)  # 오늘 데이터 추가
-
-            # 캐시 업데이트
-            data_cache[user_id] = {
-                "last_date": today,
-                "attendance": attendance_status_list[-365:]  # 365일 유지
-            }
-
-        return {
-            "user_id": user_id,
-            "attendance_status": attendance_status_list[-365:]
-        }
-    else:
-        # 캐시에 데이터가 없으면 365일 계산
-        attendance_status_list = calculate_attendance(db, user_id)
-
-        # 캐시에 저장
-        data_cache[user_id] = {
-            "last_date": today,
-            "attendance": attendance_status_list
-        }
-
-        return {
-            "user_id": user_id,
-            "attendance_status": attendance_status_list
-        }
+    # 출석 데이터 반환
+    attendance_data = json.loads(user.attendance_data) if user.attendance_data else []
+    return {
+        "user_id": user_id,
+        "attendance_status": attendance_data
+    }
