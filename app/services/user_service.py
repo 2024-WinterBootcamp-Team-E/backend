@@ -7,6 +7,7 @@ from app.models.chat import Chat
 from fastapi import HTTPException
 from app.schemas.user import UserUpdate, UserWithFeedback
 from datetime import datetime, timedelta
+import json
 
 def get_all_users(db: Session):
     return db.query(User).all()
@@ -57,38 +58,92 @@ def signup_user(user: User, db: Session) -> User:
     db.refresh(user)
     return user
 
-def calculate_attendance(db: Session, user_id: int):
-    today = datetime.utcnow().date()
-    attendance_list = []
+def initialize_attendance_data(db: Session, user_id: int):
+    user = db.query(User).filter_by(user_id=user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    for day_offset in range(30):
+    today = datetime.utcnow().date()
+    attendance_data = []
+
+    # 과거 365일의 출석 상태를 계산
+    for day_offset in range(365):
         date_to_check = today - timedelta(days=day_offset)
         start_time = datetime(date_to_check.year, date_to_check.month, date_to_check.day)
         end_time = start_time + timedelta(days=1)
 
         chats_activity = db.query(Chat).filter(
             Chat.user_id == user_id,
-            (
-                (Chat.created_at >= start_time) & (Chat.created_at < end_time) |
-                (Chat.updated_at >= start_time) & (Chat.updated_at < end_time)
-            ),
+            ((Chat.created_at >= start_time) & (Chat.created_at < end_time)) |
+            ((Chat.updated_at >= start_time) & (Chat.updated_at < end_time)),
             Chat.is_deleted == False
         ).count()
 
         feedbacks_activity = db.query(Feedback).filter(
             Feedback.user_id == user_id,
-            (
-                (Feedback.created_at >= start_time) & (Feedback.created_at < end_time) |
-                (Feedback.updated_at >= start_time) & (Feedback.updated_at < end_time)
-            ),
+            ((Feedback.created_at >= start_time) & (Feedback.created_at < end_time)) |
+            ((Feedback.updated_at >= start_time) & (Feedback.updated_at < end_time)),
             Feedback.is_deleted == False
         ).count()
 
-        if chats_activity > 0 and feedbacks_activity > 0:
-            attendance_list.append(2)
-        elif chats_activity > 0 or feedbacks_activity > 0:
-            attendance_list.append(1)
-        else:
-            attendance_list.append(0)
+        status = 2 if chats_activity > 0 and feedbacks_activity > 0 else 1 if chats_activity > 0 or feedbacks_activity > 0 else 0
+        attendance_data.append(status)
 
-    return list(reversed(attendance_list))
+    # 저장
+    user.attendance_update = today
+    user.attendance_data = json.dumps(list(reversed(attendance_data)))  # 최신 날짜가 마지막에 오도록 저장
+    db.commit()
+
+def attendance_today(db: Session, user_id: int):
+    user = db.query(User).filter_by(user_id=user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    today = datetime.utcnow().date()
+    start_time = datetime(today.year, today.month, today.day)
+    end_time = start_time + timedelta(days=1)
+
+    chats_activity = db.query(Chat).filter(
+        Chat.user_id == user_id,
+        ((Chat.created_at >= start_time) & (Chat.created_at < end_time)) |
+        ((Chat.updated_at >= start_time) & (Chat.updated_at < end_time)),
+        Chat.is_deleted == False
+    ).count()
+
+    feedbacks_activity = db.query(Feedback).filter(
+        Feedback.user_id == user_id,
+        ((Feedback.created_at >= start_time) & (Feedback.created_at < end_time)) |
+        ((Feedback.updated_at >= start_time) & (Feedback.updated_at < end_time)),
+        Feedback.is_deleted == False
+    ).count()
+
+    status = 2 if chats_activity > 0 and feedbacks_activity > 0 else 1 if chats_activity > 0 or feedbacks_activity > 0 else 0
+
+    # 출석 데이터 업데이트
+    attendance_data = []
+    if user.attendance_data:
+        try:
+            attendance_data = json.loads(user.attendance_data)
+        except json.JSONDecodeError:
+            # JSON 데이터가 손상되었을 경우 초기화
+            attendance_data = []
+
+    if user.attendance_update == today:
+        # 오늘 데이터를 갱신
+        if attendance_data:
+            attendance_data[-1] = status
+        else:
+            attendance_data.append(status)
+    else:
+        # 오늘 데이터를 추가
+        attendance_data.append(status)
+
+    # 최대 365일의 데이터만 유지
+    if len(attendance_data) > 365:
+        attendance_data.pop(0)
+
+    # 데이터 업데이트
+    user.attendance_update = today
+    user.attendance_data = json.dumps(attendance_data)
+    db.commit()
+
