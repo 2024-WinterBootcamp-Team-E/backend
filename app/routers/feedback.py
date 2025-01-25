@@ -36,7 +36,8 @@ async def analyze_pronunciation_endpoint(
         #print(f"[LOG] Sentence Content: {text}
         change_audio = change_audio_file(audio_file)
         azure_result = await analyze_pronunciation_with_azure(text, change_audio)
-        print(f"[LOG] Azure Result: {azure_result.get('RecognitionStatus')}")
+        print(f"[LOG] Azure Result: {azure_result}\n")
+        # print(f"[LOG] Azure Result: {azure_result.get('RecognitionStatus')}")
         if azure_result.get('RecognitionStatus') != 'Success':
             raise HTTPException(status_code=400, detail="인식 실패: 다시 시도해 주세요.")
         nbest_list = azure_result.get("NBest")
@@ -62,7 +63,7 @@ async def analyze_pronunciation_endpoint(
         #     print(f"[LOG] {k}: {v}")
 
         background_task = asyncio.create_task(
-            extract_weak_pronunciations(processed_words, user_id, mdb, threshold=50)
+            extract_weak_pronunciations(processed_words, user_id, mdb, threshold=75)
         )
         background_task.add_done_callback(done_callback)
 
