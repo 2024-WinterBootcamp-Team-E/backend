@@ -35,8 +35,10 @@ async def analyze_pronunciation_with_azure(text: str, audio_data: bytes):
     pronunciation_config = PronunciationAssessmentConfig(
         reference_text=text,
         grading_system=PronunciationAssessmentGradingSystem.HundredMark,
-        granularity=PronunciationAssessmentGranularity.Phoneme
+        granularity=PronunciationAssessmentGranularity.Phoneme,
+    #    enable_miscue = True
     )
+    pronunciation_config.enable_prosody_assessment()
     recognizer = SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
     pronunciation_config.apply_to(recognizer)
 

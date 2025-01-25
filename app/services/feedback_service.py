@@ -124,8 +124,8 @@ async def extract_weak_pronunciations(processed_words, user_id: int, mdb:AsyncIO
                 pron_assessment = syllable_data.get("PronunciationAssessment", {})
                 accuracy_score = pron_assessment.get("AccuracyScore", 100.0)
 
-                # 4) 정확도 점수가 임계값 이하일 경우 약한 발음으로 처리
-                if accuracy_score <= threshold:
+                # 4) 정확도 점수가 임계값 이하일 경우 약한 발음으로 처리 + 음절이 2개 이하만
+                if len(syllable)<3 and accuracy_score <= threshold:
                     weak_syllables.append({
                         "word": word,
                         "syllable": syllable,
@@ -143,7 +143,7 @@ async def extract_weak_pronunciations(processed_words, user_id: int, mdb:AsyncIO
                     )
 
         # 선택적으로, 약한 발음 리스트를 로깅하거나 반환
-        # print("[LOG] Weak Syllables:", weak_syllables)
+        print("[LOG] Weak Syllables:", weak_syllables)
         # return weak_syllables
 
     except Exception as e:
