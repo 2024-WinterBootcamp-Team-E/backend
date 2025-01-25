@@ -18,8 +18,6 @@ services:
   mongo:
     container_name: mongo
     image: mongo:latest
-    ports:
-      - "27018:27017"
     networks:
       - teamEnet
 
