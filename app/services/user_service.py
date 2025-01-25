@@ -58,7 +58,7 @@ def signup_user(user: User, db: Session) -> User:
     db.refresh(user)
     return user
 
-def attendance_data(db: Session, user_id: int):
+def initialize_attendance_data(db: Session, user_id: int):
     user = db.query(User).filter_by(user_id=user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -117,23 +117,33 @@ def attendance_today(db: Session, user_id: int):
         Feedback.is_deleted == False
     ).count()
 
-
     status = 2 if chats_activity > 0 and feedbacks_activity > 0 else 1 if chats_activity > 0 or feedbacks_activity > 0 else 0
 
     # 출석 데이터 업데이트
-    attendance_data = json.loads(user.attendance_data) if user.attendance_data else []
+    attendance_data = []
+    if user.attendance_data:
+        try:
+            attendance_data = json.loads(user.attendance_data)
+        except json.JSONDecodeError:
+            # JSON 데이터가 손상되었을 경우 초기화
+            attendance_data = []
 
-    if len(attendance_data) > 0 and len(attendance_data) >= (
-            datetime.utcnow().date() - (datetime.utcnow().date() - timedelta(len(attendance_data)))).days:
-        attendance_data[-1] = status
+    if user.attendance_update == today:
+        # 오늘 데이터를 갱신
+        if attendance_data:
+            attendance_data[-1] = status
+        else:
+            attendance_data.append(status)
     else:
+        # 오늘 데이터를 추가
         attendance_data.append(status)
 
-        # 최대 365일의 데이터만 유지
+    # 최대 365일의 데이터만 유지
     if len(attendance_data) > 365:
         attendance_data.pop(0)
 
-        # 데이터 업데이트
-    user.last_attendance_update = today
+    # 데이터 업데이트
+    user.attendance_update = today
     user.attendance_data = json.dumps(attendance_data)
     db.commit()
+

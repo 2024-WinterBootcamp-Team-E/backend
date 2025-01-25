@@ -6,7 +6,7 @@ from app.database.session import get_db
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.schemas.user import UserUpdate, UserCreate, UserLogin, UserResponse
 from app.models.user import User
-from app.services.user_service import update_user, create_user_with_feedback, attendance_data, attendance_today
+from app.services.user_service import update_user, create_user_with_feedback, initialize_attendance_data, attendance_today
 from app.services.user_service import user_soft_delete, user_hard_delete, get_user, signup_user
 from datetime import datetime, timedelta
 import json
@@ -90,7 +90,7 @@ def get_recent_attendance(user_id: int, db: Session = Depends(get_db)):
 
     # 초기화 (필요 시)
     if not user.attendance_data:
-        attendance_data(db, user_id)
+        initialize_attendance_data(db, user_id)
 
     # 당일 데이터 업데이트
     attendance_today(db, user_id)
