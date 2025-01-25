@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import app.models
 from dotenv import load_dotenv
 import os
+import logging
 
 #Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
@@ -31,4 +32,13 @@ app.add_middleware(
     allow_methods=["*"],  # 허용할 HTTP 메서드 목록. '*'는 모든 메서드 허용.
     allow_headers=["*"],  # 허용할 헤더 목록. '*'는 모든 헤더 허용.
 )
+
+
+# 로깅 설정
+logging.basicConfig(
+
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(name)s %(message)s',
+)
+logger = logging.getLogger(__name__)
 app.include_router(router)

@@ -90,4 +90,3 @@ async def create_bubble(chat_id: int,user_id: int, file: UploadFile, db: Session
     country = chat.character_name
     event = event_generator(chat_id=chat_id, tts_id=chat.tts_id, file_content_io=io.BytesIO(await file.read()),filename=file.filename, title=title, country=country, mdb=mdb)
     return StreamingResponse(event, media_type="text/event-stream")
-
