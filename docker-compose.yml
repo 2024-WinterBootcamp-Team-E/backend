@@ -20,58 +20,9 @@ services:
     image: mongo:latest
     ports:
       - "27018:27017"
-    volumes:
-      - mongo_data:/data/winterboote
     networks:
       - teamEnet
 
-#  cadvisor:
-#    image: gcr.io/cadvisor/cadvisor:latest
-#    container_name: cadvisor
-#    ports:
-#      - "8080:8080"
-#    volumes:
-#      - /:/rootfs:ro
-#      - /var/run/docker.sock:/var/run/docker.sock:ro
-#      - /sys:/sys:ro
-#      - /var/lib/docker/:/var/lib/docker:ro
-#    privileged: true
-#    networks:
-#      - teamEnet
-#
-#  prometheus:
-#    image: prom/prometheus:latest
-#    container_name: prometheus
-#    ports:
-#      - "9090:9090"
-#    volumes:
-#      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-#    networks:
-#      - teamEnet
-#
-#  grafana:
-#    image: grafana/grafana:latest
-#    container_name: grafana
-#    ports:
-#      - "3000:3000"
-#    networks:
-#      - teamEnet
-#    depends_on:
-#      - prometheus
-
-#  k6:
-#    image: grafana/k6
-#    container_name: k6
-#    volumes:
-#      - ./test.js:/test.js
-#    depends_on:
-#      - fastapi-server
-#    command: run /test.js
-#    networks:
-#      - teamEnet
-
-volumes:
-  mongo_data:
 
 networks:
   teamEnet:
