@@ -96,10 +96,12 @@ def get_recent_attendance(user_id: int, db: Session = Depends(get_db)):
         last_calculated_date = cached_data["last_date"]
         attendance_status_list = cached_data["attendance"]
 
-        # 오늘의 데이터가 계산되지 않았으면 추가 계산
-        if last_calculated_date < today:
-            today_status = calculate_today_attendance(db, user_id)
-            attendance_status_list.append(today_status)
+        today_status = calculate_today_attendance(db, user_id)
+
+        if len(attendance_status_list) > 0 and last_calculated_date == today:
+            attendance_status_list[-1] = today_status  # 오늘 데이터 업데이트
+        else:
+            attendance_status_list.append(today_status)  # 오늘 데이터 추가
 
             # 캐시 업데이트
             data_cache[user_id] = {
