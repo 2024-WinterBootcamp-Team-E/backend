@@ -71,5 +71,4 @@ jobs:
 
             # 컨테이너 실행
             docker-compose up -d
-
             echo "Deployment complete."
