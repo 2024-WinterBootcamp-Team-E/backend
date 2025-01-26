@@ -28,8 +28,6 @@ def get_all_chatrooms(user_id: int, db: Session = Depends(get_db), skip: int = 0
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     chatrooms = get_chatrooms(user_id=user_id, db=db, skip=skip, limit=limit)
-    if not chatrooms:
-        raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
     return ResultResponseModel(code=200,message="모든 채팅방 조회 완료",data=chatrooms)
 
 @router.delete("/{user_id}/{chat_id}", summary="Chatroom 삭제", description="특정 user_id와 chat_id에 해당하는 채팅방을 삭제합니다.")
@@ -51,31 +49,40 @@ def get_chatroom_detail(user_id: int, chat_id: int, db: Session = Depends(get_db
     chat = get_chat(user_id=user_id, chat_id=chat_id, db=db)
     if not chat:
         raise HTTPException(status_code=404, detail="Chatroom not found")
-    chat_response = Chatroomresponse.model_validate(chat)
     chat_history = get_chat_history(chat_id, mdb)
     if not chat_history:
-        response_data = {"chat_info": chat_response,}
-        return ResultResponseModel(code=200, message="Chatroom retrieved successfully", data=response_data)
+        raise HTTPException(status_code=404, detail="mongodb: Chat history not found")
     response_data = {
-        "chat_info": chat_response,
         "chat_history": chat_history.get("messages", [])  # MongoDB에서 messages 배열만 추출
     }
     return ResultResponseModel(code=200, message="Chatroom retrieved successfully", data=response_data)
 
 
+# @router.post("/{user_id}/chat", summary="채팅방생성", description="새로운 채팅방을 생성합니다.")
+# def chat_with_voice(req: ChatRoomCreateRequest, user_id: int, db: Session = Depends(get_db),mdb: Database = Depends(get_mongo_db)):
+#     user = get_user(user_id, db)
+#
+#     if not user:
+#         raise HTTPException(status_code=404, detail="사용자 없음")
+#     tts_id = CHARACTER_TTS_MAP.get(req.character_name)
+#     if not tts_id:
+#         raise HTTPException(status_code=400, detail="유효하지 않은 캐릭터 이름입니다.")
+#     new_chat = create_chatroom(req, user_id, db)
+#     create_chatroom_mongo(new_chat, mdb)
+#     chatrooms = get_chatrooms(user_id=user_id, db=db)
+#     return ResultResponseModel(code=200, message = f"채팅방 생성 완료: {new_chat.chat_id}", data=chatrooms)
 @router.post("/{user_id}/chat", summary="채팅방생성", description="새로운 채팅방을 생성합니다.")
 def chat_with_voice(req: ChatRoomCreateRequest, user_id: int, db: Session = Depends(get_db),mdb: Database = Depends(get_mongo_db)):
     user = get_user(user_id, db)
-
     if not user:
         raise HTTPException(status_code=404, detail="사용자 없음")
     tts_id = CHARACTER_TTS_MAP.get(req.character_name)
     if not tts_id:
         raise HTTPException(status_code=400, detail="유효하지 않은 캐릭터 이름입니다.")
+
     new_chat = create_chatroom(req, user_id, db)
     create_chatroom_mongo(new_chat, mdb)
-    chatrooms = get_chatrooms(user_id=user_id, db=db)
-    return ResultResponseModel(code=200, message = f"채팅방 생성 완료: {new_chat.chat_id}", data=chatrooms)
+    return ResultResponseModel(code=200, message="채팅방 생성 완료", data=new_chat)
 
 
 @router.post("/{user_id}/{chat_id}", summary="대화 생성", description="STT를 통해 GPT와 대화를 생성합니다.",response_class=StreamingResponse)
