@@ -24,7 +24,7 @@ async def generate_tts_audio_async(gpt_chunk: str, tts_id: str):
         response = client.text_to_speech.convert(
             voice_id=tts_id,
             optimize_streaming_latency="0",
-            output_format="pcm_24000",
+            output_format="mp3_22050_32",
             text=gpt_chunk,
             model_id="eleven_multilingual_v2",
             voice_settings=VoiceSettings(
