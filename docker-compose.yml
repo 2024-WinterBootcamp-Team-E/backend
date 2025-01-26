@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   fastapi-server:
     container_name: fastapi
@@ -9,7 +7,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - MONGODB_URL=mongodb://mongo:27017/winterboote
+      - MONGODB_URL=${MONGODB_URL}
     networks:
       - teamEnet
     depends_on:
@@ -18,61 +16,15 @@ services:
   mongo:
     container_name: mongo
     image: mongo:latest
-    ports:
-      - "27018:27017"
     volumes:
-      - mongo_data:/data/winterboote
+      - mongodb_data:/data/db  # 데이터 저장을 위한 볼륨 설정
     networks:
       - teamEnet
-
-#  cadvisor:
-#    image: gcr.io/cadvisor/cadvisor:latest
-#    container_name: cadvisor
-#    ports:
-#      - "8080:8080"
-#    volumes:
-#      - /:/rootfs:ro
-#      - /var/run/docker.sock:/var/run/docker.sock:ro
-#      - /sys:/sys:ro
-#      - /var/lib/docker/:/var/lib/docker:ro
-#    privileged: true
-#    networks:
-#      - teamEnet
-#
-#  prometheus:
-#    image: prom/prometheus:latest
-#    container_name: prometheus
-#    ports:
-#      - "9090:9090"
-#    volumes:
-#      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-#    networks:
-#      - teamEnet
-#
-#  grafana:
-#    image: grafana/grafana:latest
-#    container_name: grafana
-#    ports:
-#      - "3000:3000"
-#    networks:
-#      - teamEnet
-#    depends_on:
-#      - prometheus
-
-#  k6:
-#    image: grafana/k6
-#    container_name: k6
-#    volumes:
-#      - ./test.js:/test.js
-#    depends_on:
-#      - fastapi-server
-#    command: run /test.js
-#    networks:
-#      - teamEnet
-
-volumes:
-  mongo_data:
 
 networks:
   teamEnet:
     driver: bridge
+
+volumes:
+  mongodb_data:  # 최상위 레벨에 볼륨 정의 추가
+
