@@ -72,66 +72,26 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
         transcription = await generate_transcription(file_content_io, filename)
         yield f"data: {json.dumps({'step': 'transcription', 'content': transcription})}\n\n"
 
-        # Step 2: Queue를 사용하여 GPT와 TTS 작업 병렬 실행
-        send_queue = asyncio.Queue()
+        gpt_response_full = ""
+        async for gpt_chunk in generate_gpt_response(chat_id, transcription, title, country, mdb):
+            gpt_response_full += gpt_chunk
+        yield f"data: {json.dumps({'step': 'gpt_response', 'content': gpt_response_full})}\n\n"
 
-        async def process_gpt_and_tts():
-            gpt_response_full = ""
-            buffer = ""  # GPT 청크를 버퍼링
-            async for gpt_chunk in generate_gpt_response(chat_id, transcription, title, country, mdb):
-                gpt_response_full += gpt_chunk
-                buffer += gpt_chunk
-
-                # 버퍼가 일정 길이를 넘으면 TTS 요청
-                if len(buffer) > 50 or "." in buffer:
-                    # GPT 청크를 Queue에 추가
-                    await send_queue.put(
-                        json.dumps({'step': 'gpt_response', 'content': buffer})
-                    )
-
-                    # TTS 요청
-                    async for tts_chunk in generate_tts_audio_async(buffer, tts_id):
-                        await send_queue.put(
-                            json.dumps({'step': 'tts_audio', 'content': base64.b64encode(tts_chunk).decode('utf-8')})
-                        )
-                    buffer = ""  # 버퍼 초기화
-
-            # 남아있는 버퍼 처리
-            if buffer:
-                await send_queue.put(
-                    json.dumps({'step': 'gpt_response', 'content': buffer})
-                )
-                async for tts_chunk in generate_tts_audio_async(buffer, tts_id):
-                    await send_queue.put(
-                        json.dumps({'step': 'tts_audio', 'content': base64.b64encode(tts_chunk).decode('utf-8')})
-                    )
-
-            await send_queue.put(None)  # 작업 종료 신호
-            return gpt_response_full
-
-        # 두 작업을 병렬로 실행
-        gpt_tts_task = asyncio.create_task(process_gpt_and_tts())
-        grammar_task = asyncio.create_task(generate_grammar_feedback(transcription, country))
-
-        # Queue에서 데이터를 클라이언트로 전송
-        while True:
-            try:
-                message = await asyncio.wait_for(send_queue.get(), timeout=2.0)
-                if message is None:  # 작업 종료
-                    break
-                yield f"data: {message}\n\n"
-            except asyncio.TimeoutError:
-                yield f"data: {json.dumps({'step': 'error', 'message': 'Timeout occurred while processing data'})}\n\n"
-                break
-
-        # GPT와 TTS 작업 완료 대기
-        gpt_response_full = await gpt_tts_task
+        # Step 3: TTS 변환
+        try:
+            tts_response: bytes = await generate_tts_audio_async(gpt_response_full, tts_id)
+            tts_content = base64.b64encode(tts_response).decode('utf-8')
+            yield f"data: {json.dumps({'step': 'tts_audio', 'content': tts_content})}\n\n"
+        except HTTPException as e:
+            # TTS 변환 실패 시 오류 메시지 전송
+            yield f"data: {json.dumps({'step': 'error', 'message': e.detail})}\n\n"
+            raise  # 예외를 다시 발생시켜 이후 로직을 중단
 
         # Grammar 피드백 작업 완료 대기
-        grammar_feedback = await grammar_task
+        grammar_feedback = await generate_grammar_feedback(transcription, country)
         yield f"data: {json.dumps({'step': 'grammar_feedback', 'content': grammar_feedback})}\n\n"
 
-        # Step 5: Save to Database
+
         save_to_database(chat_id, transcription, gpt_response_full, grammar_feedback, mdb)
 
     except HTTPException as e:

@@ -6,7 +6,6 @@ class Chat(Base):
 
     chat_id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
-    score = Column(Integer, nullable=True)
     title = Column(String(255), nullable=True)
     character_name = Column(String(50), nullable=True)
     tts_id = Column(Text, nullable=True)
