@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   fastapi-server:
     container_name: fastapi
@@ -19,11 +17,13 @@ services:
     container_name: mongo
     image: mongo:latest
     volumes:
-      - mongodb_data:/data/db
+      - mongodb_data:/data/db  # 데이터 저장을 위한 볼륨 설정
     networks:
       - teamEnet
-
 
 networks:
   teamEnet:
     driver: bridge
+
+volumes:
+  mongodb_data:  # 최상위 레벨에 볼륨 정의 추가
