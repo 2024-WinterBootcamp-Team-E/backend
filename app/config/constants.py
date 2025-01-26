@@ -1,5 +1,5 @@
 CHARACTER_TTS_MAP = {
-    "영국": "tzX5paJ07p5hyWFcU3uG",
-    "미국": "UgBBYS2sOqTuMpoF3BR0",
+    "영국": "mZ8K1MPRiT5wDQaasg3i",
+    "미국": "mZ8K1MPRiT5wDQaasg3i",
 
 }

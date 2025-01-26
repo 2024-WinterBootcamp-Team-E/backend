@@ -2,7 +2,7 @@ import asyncio
 import base64
 import io
 import json
-from http.client import HTTPException
+from fastapi import HTTPException
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from app.config.constants import CHARACTER_TTS_MAP
@@ -18,12 +18,12 @@ def get_chatrooms(user_id: int, db: Session, skip: int = 0, limit: int = 100):
     return [
         Chatroomresponse(
             chat_id=chatroom.chat_id,
-            user_id=chatroom.user_id,
-            score=chatroom.score,
+            #user_id=chatroom.user_id,
+            #score=chatroom.score,
             title=chatroom.title,
             character_name=chatroom.character_name,
-            tts_id=chatroom.tts_id,
-            created_at=chatroom.created_at,
+            #tts_id=chatroom.tts_id,
+            #created_at=chatroom.created_at,
             updated_at=chatroom.updated_at
         )
         for chatroom in chatrooms
@@ -50,12 +50,16 @@ def create_chatroom(req: ChatRoomCreateRequest, user_id: int, db: Session):
         title=req.title,
         character_name=req.character_name,
         tts_id=tts_id,
-        created_at=datetime.now(),
-        updated_at=datetime.now()
     )
     db.add(new_chat)
     db.commit()
     db.refresh(new_chat)
+    new_chat = Chatroomresponse(
+        chat_id=new_chat.chat_id,
+        title=new_chat.title,
+        character_name=new_chat.character_name,
+        updated_at=new_chat.updated_at
+    )
     return new_chat
 
 def create_chatroom_mongo(chat, mdb:Database):
