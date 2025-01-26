@@ -17,7 +17,7 @@ services:
     container_name: mongo
     image: mongo:latest
     volumes:
-      - mongodb_data:/data/db  # 데이터 저장을 위한 볼륨 설정
+      - mongodb_data:/data/db
     networks:
       - teamEnet
 
