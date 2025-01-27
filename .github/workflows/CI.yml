@@ -22,7 +22,7 @@ jobs:
           echo "Docker Image Tag: $VERSION"
           echo "DOCKER_IMAGE_TAG=${VERSION}" >> $GITHUB_ENV
 
-      # 3. Python 설치 및 의존성 설치 (필요한 경우에만 실행)
+      # 3. Python 설치 및 의존성 설치
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
