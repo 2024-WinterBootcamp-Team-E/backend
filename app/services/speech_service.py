@@ -52,6 +52,6 @@ def create_pronunciation_result(feedback: Feedback, sentence: Sentence):
 def get_sentence_detail(sentence):
     return {
         "content": sentence.content,
-        "situation": sentence.situation.value,  # Enum 값을 반환
+        "situation": sentence.situation.value,
         "voice_url": sentence.voice_url
     }

@@ -6,9 +6,7 @@ from app.models.feedback import Feedback
 from app.schemas.user import UserWithFeedback
 from app.models.user import User
 import json
-from app.config.azure.pronunciation_feedback import analyze_pronunciation_with_azure
 from fastapi import HTTPException, UploadFile
-from app.config.openAI.openai_service import get_pronunciation_feedback
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydub import AudioSegment
 import asyncio
@@ -49,15 +47,14 @@ async def create_feedback_from_azure_response(
     db.commit()
     db.refresh(feedback)
 
-
 def get_value(key, json_string):
     try:
-        json_data = json.loads(json_string)  # JSON 변환
+        json_data = json.loads(json_string)
         pronunciation_assessment = json_data.get("NBest", [{}])[0].get("PronunciationAssessment", {})
         value = pronunciation_assessment.get(key)
         if value is None:
             raise ValueError(f"키 {key}를 찾을 수 없습니다.")
-        return float(value)  # 값을 실수로 변환
+        return float(value)
     except json.JSONDecodeError as e:
         print(f"[ERROR] JSON decoding failed: {e}")
         raise ValueError("JsonResult가 올바른 JSON 형식이 아닙니다.")
@@ -67,7 +64,6 @@ def get_value(key, json_string):
     return feedback
 
 def get_avg_score(user_id: int, db: Session) -> Dict[str, Optional[float]]:
-    # 피드백을 날짜별로 그룹화하기 위해 updated_at을 날짜로 변환
     daily_feedbacks = (
         db.query(
             cast(Feedback.updated_at, Date).label('date'),
@@ -79,8 +75,6 @@ def get_avg_score(user_id: int, db: Session) -> Dict[str, Optional[float]]:
         .filter(Feedback.user_id == user_id)
         .subquery()
     )
-
-    # 서브쿼리에서 각 점수의 평균을 계산합니다.
     daily_averages = (
         db.query(
             daily_feedbacks.c.date,
@@ -94,8 +88,6 @@ def get_avg_score(user_id: int, db: Session) -> Dict[str, Optional[float]]:
         .limit(10)
         .all()
     )
-
-    # 결과를 리스트 형태로 변환
     result = []
     for avg in daily_averages:
         result.append({
@@ -105,34 +97,26 @@ def get_avg_score(user_id: int, db: Session) -> Dict[str, Optional[float]]:
             "average_completeness_score": round(avg.average_completeness, 1) if avg.average_completeness is not None else None,
             "average_pron_score": round(avg.average_pron, 1) if avg.average_pron is not None else None
         })
-
     return result
 
 async def extract_weak_pronunciations(processed_words, user_id: int, mdb:AsyncIOMotorDatabase, threshold):
     try:
-        # 1) 약한 음절을 담을 리스트 (디버깅, 로깅 용도)
+        # 약한 음절을 담을 리스트 (디버깅, 로깅 용도)
         weak_syllables = []
-
-        # 2) 전처리된 words를 순회
         for word_data in processed_words:
             word = word_data.get("Word", "")
-
-            # 3) 각 단어의 Syllables 데이터 확인
             syllables = word_data.get("Syllables", [])
             for syllable_data in syllables:
                 syllable = syllable_data.get("Syllable", "")
                 pron_assessment = syllable_data.get("PronunciationAssessment", {})
                 accuracy_score = pron_assessment.get("AccuracyScore", 100.0)
-
-                # 4) 정확도 점수가 임계값 이하일 경우 약한 발음으로 처리 + 음절이 2개 이하만
+                # 음절이 2개보다 적을때 정확도 점수가 임계값 이하면 약한 발음으로 판단
                 if len(syllable)<3 and accuracy_score <= threshold:
                     weak_syllables.append({
                         "word": word,
                         "syllable": syllable,
                         "accuracy_score": accuracy_score
                     })
-
-                    # 5) MongoDB에 약점(syllable) 데이터 업데이트
                     await mdb["user_weakness_data"].update_one(
                         {"user_id": user_id},
                         {
@@ -141,16 +125,10 @@ async def extract_weak_pronunciations(processed_words, user_id: int, mdb:AsyncIO
                         },
                         upsert=True
                     )
-
-        # 선택적으로, 약한 발음 리스트를 로깅하거나 반환
         print("[LOG] Weak Syllables:", weak_syllables)
-        # return weak_syllables
-
     except Exception as e:
-        # 예외 처리 (로그 출력, HTTPException 등 상황에 맞게 처리)
         print(f"[오류] {e}")
         raise ValueError(f"약점 발음을 추출하는 중 오류 발생: {e}")
-
 
 def preprocess_words(words: list) -> list:
     processed = [
@@ -168,31 +146,26 @@ def preprocess_words(words: list) -> list:
         for w in words
     ]
     return processed
-
 # 콜백을 통해 예외 로깅
 def done_callback(task: asyncio.Task):
     try:
-        task.result()  # 예외가 있으면 여기서 발생
+        task.result()
         print("[LOG] 약점 발음분석이 정상적으로 종료되었습니다.")
     except Exception as e:
         print(f"[ERROR] 약점 발음분석 중 오류 발생: {e}")
 
-
 def change_audio_file(audio_file: UploadFile) -> bytes:
     try:
-        # UploadFile의 파일 데이터를 AudioSegment로 변환
         audio = AudioSegment.from_file(audio_file.file)
-
         # 샘플링 속도, 채널, 샘플 포맷 설정
         audio = audio.set_frame_rate(16000)  # 16kHz
         audio = audio.set_channels(1)       # 모노
         audio = audio.set_sample_width(2)   # 16비트 (2 bytes per sample)
-
         # 변환된 데이터를 바이트로 반환
         wav_io = io.BytesIO()
         audio.export(wav_io, format="wav")
-        wav_io.seek(0)  # 파일 포인터를 처음으로 이동
-        return wav_io.read()  # Bytes로 반환
+        wav_io.seek(0)
+        return wav_io.read()
     except Exception as e:
         print(f"[ERROR] Audio conversion failed: {e}")
         raise HTTPException(status_code=400, detail="오디오 변환 중 오류가 발생했습니다.")
