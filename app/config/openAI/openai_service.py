@@ -35,11 +35,17 @@ async def get_gpt_response_limited(chat_id: int, prompt: str, title:str, country
     system_message = {
         "role": "system",
         "content": (
-            "You are an AI assistant that provides concise and natural responses tailored to the given subject and country. "
-            f"The current subject is: {title}. The country is: {country}. "
-            "Use vocabulary and phrasing appropriate for the specified country: "
-            "For example, use 'trousers' for UK and 'pants' for US. "
-            "Keep answers under 30 words, include follow-up questions, and maintain an engaging tone."
+            f"Cureent Subject : {title}\n"
+            f"Country : {country} (either US for American English or UK for British English\n"
+            "Please proceed according to the description below.\n"
+            "1. Language Variant: Use vocabulary and phrasing appropriate for the specified country. For example, use trousers for UK and pants for US.\n"
+            "2. Consistency: Maintain the chosen English variant consistently throughout the conversation."
+            "3. Response Guidelines : \n"
+            "- Keep answers concise, under 30 words.\n"
+            "- Include relevant follow-up questions to keep the conversation flowing naturally.\n"
+            "- Maintain an engaging and friendly tone.\n"
+            "4. Handling No Differences: If there are no significant vocabulary differences for the subject, use standard English appropriate for the specified country."
+
         )
     }
     conversation = [system_message]
@@ -81,11 +87,14 @@ async def get_grammar_feedback(prompt: str, country:str) -> str:
     system_message = {
         "role": "system",
         "content": (
-            "You are a grammar expert providing concise feedback to improve writing quality. "
-            f"Tailor your suggestions to the specified country: {country}. "
-            "Ensure grammar, spelling, and word choice are appropriate for the country. "
-            "For example, use 'trousers' for UK and 'pants' for US, or 'trainers' for UK and 'sneakers' for US. "
-            "Keep your feedback clear, actionable, and under 50 words."
+            "당신은 문법 전문가로서 사용자의 글쓰기 품질을 향상시키기 위해 간결한 피드백을 제공합니다.\n"
+            "아래의 설명에 맞추어서 답을 해주세요.\n"
+            f"1. 지정된 국가({country})에 맞춰 제안을 조정하세요.\n"
+            "2. 문법, 단어 선택이 해당 국가에 적합한지 확인하세요.\n"
+            "예를 들어, 영국식 영어에서는 'trousers'를, 미국식 영어에서는 'pants'를 사용하거나, "
+            "영국식 영어에서는 'trainers'를, 미국식 영어에서는 'sneakers'를 사용하는 식입니다.\n"
+            "3. 피드백은 명확하고 실행 가능하며 50단어 이내로 유지하세요.\n"
+            "4. 사용자가 작성한 문장에서 문법이 잘못된 부분을 한국어로 구체적으로 지적하고, 개선 방법을 제안하세요. 불필요한 칭찬이나 인사는 포함하지 않습니다."
         )
     }
 
@@ -96,20 +105,25 @@ async def get_grammar_feedback(prompt: str, country:str) -> str:
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4",
             messages=messages,
         )
         return response.choices[0].message.content
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
+
 async def get_pronunciation_feedback(words: list, text:str) -> str:
     # 시스템 역할 설정
     system_message = {
         "role": "system",
         "content": (
-            "You are a pronunciation expert providing detailed feedback. "
-            "Identify problematic words, explain issues clearly, and suggest improvements. "
-            "Respond in a conversational tone without unnecessary compliments."
+            "당신은 영어 발음 교정 전문가입니다.\n"
+            "아래 지시사항을 준수하여 한국어로 답변해주세요.\n"
+            "1. 문제가 있는 단어만 구체적으로 지적합니다.\n"
+            "2. 발음 오류 원인과 개선 방법을 간단하게 설명합니다.\n"
+            "3. 잘한 부분이나 불필요한 인사는 언급하지 않습니다..\n"
+            "4. 답변은 총 30단어 이내로 작성합니다.\n"
+            "5. 항상 존댓말을 사용하여 일관된 말투를 유지합니다."
         )
     }
 
@@ -120,18 +134,13 @@ async def get_pronunciation_feedback(words: list, text:str) -> str:
         "content": (
             f"사용자가 발음한 문장 {text}\n"
             f"음절 피드백 {words}\n\n"
-            "이 데이터를 바탕으로, 피드백을 작성해 주세요:\n"
-            "1. 발음에서 문제가 있었던 단어를 찾아주세요.\n"
-            "2. 문제가 되는 발음의 원인은 구체적으로 설명해 주고 개선방향을 알려주세요.\n"
-            "3. 문제가 없거나 잘한 부분은 언급하지 말아주세요.\n"
-            "출력 형식은 대화체로 작성해 주세요. 응원, 인사말 같은 불필요한 말은 빼고 30단어 내외로 작성해 주세요."
         )
     })
 
     try:
         # 비동기 OpenAI GPT 호출
         response = await openai.ChatCompletion.acreate(
-            model="gpt-3.5-turbo",
+            model="gpt-4",
             messages=messages,
             stream=True
         )
