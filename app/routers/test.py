@@ -11,14 +11,13 @@ router = APIRouter(
     prefix="/test",
     tags=["Test"]
 )
-@router.post("/save_audio_url")
+@router.post("/save_audio_url", summary="음성 파일 URL 저장", description="음성 파일 URL을 저장합니다.")
 async def save_audio_url(file: UploadFile, situation: str, sentence_id: int, db: Session = Depends(get_db)):
     file_url = await upload_audio(file, situation)
     try:
         sentence = db.query(Sentence).filter(Sentence.sentence_id == sentence_id).first()
         if not sentence:
             raise HTTPException(status_code=404, detail="해당 sentence_id가 없습니다.")
-
         sentence.voice_url = file_url
         db.commit()
         return {"message": "성공적으로 저장되었습니다.", "voice_url": file_url}
@@ -33,7 +32,6 @@ def get_dailytask(user_id:int, selected_day:datetime, db: Session=Depends(get_db
         raise HTTPException(status_code=404, detail="User not found")
     dailytask_response = dailytask(db, user_id, selected_day)
     return ResultResponseModel(code=200, message="당일 학습 정보 조회 성공", data=dailytask_response)
-
 
 @router.get("/health")
 async def health_check():

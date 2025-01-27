@@ -1,6 +1,5 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
 
 class ChatRoomCreateRequest(BaseModel):
     character_name: str
@@ -11,6 +10,5 @@ class Chatroomresponse(BaseModel):
     title: str
     character_name: str
     updated_at: datetime
-
     class Config:
         from_attributes = True
