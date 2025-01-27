@@ -74,8 +74,8 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
 
         gpt_response_full = ""
         async for gpt_chunk in generate_gpt_response(chat_id, transcription, title, country, mdb):
+            yield f"data: {json.dumps({'step': 'gpt_response', 'content': gpt_chunk})}\n\n"
             gpt_response_full += gpt_chunk
-        yield f"data: {json.dumps({'step': 'gpt_response', 'content': gpt_response_full})}\n\n"
 
         # Step 3: TTS 변환
         try:
