@@ -19,6 +19,7 @@ async def transcribe_audio(file_content_io: io.BytesIO,filename:str) -> str:
         response = openai.Audio.transcribe(
             model="whisper-1",
             file=file_content_io,
+            language="en"
         )
         return response.text
     except Exception as e:
