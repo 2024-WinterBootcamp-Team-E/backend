@@ -21,10 +21,10 @@ async def generate_tts_audio_async(gpt_chunk: str, tts_id: str):
     """
     try:
         # ElevenLabs API 호출 (스트리밍 지원)
-        response = client.text_to_speech.convert(
+        response_generator = client.text_to_speech.convert(
             voice_id=tts_id,
             optimize_streaming_latency="0",
-            output_format="pcm_24000",
+            output_format="mp3_22050_32",
             text=gpt_chunk,
             model_id="eleven_multilingual_v2",
             voice_settings=VoiceSettings(
@@ -34,12 +34,11 @@ async def generate_tts_audio_async(gpt_chunk: str, tts_id: str):
                 use_speaker_boost=True,
             ),
         )
+        # generator를 모두 소비하여 bytes 객체로 변환
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, lambda: b"".join(response_generator))
 
-        # 응답을 청크 단위로 비동기적으로 반환
-        for chunk in response:
-            if chunk:  # 빈 청크 무시
-                await asyncio.sleep(0)  # 비동기 컨텍스트 유지
-                yield chunk
+        return response
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"TTS 변환 실패: {str(e)}")
