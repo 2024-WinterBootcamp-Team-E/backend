@@ -1,6 +1,9 @@
+import asyncio
 import base64
-import io
+import io,re
 import json
+import uuid
+
 from fastapi import HTTPException
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -66,18 +69,84 @@ async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO
     try:
         transcription = await generate_transcription(file_content_io, filename)
         yield f"data: {json.dumps({'step': 'transcription', 'content': transcription})}\n\n"
-        gpt_response_full = ""
-        async for gpt_chunk in generate_gpt_response(chat_id, transcription, title, country, mdb):
-            yield f"data: {json.dumps({'step': 'gpt_response', 'content': gpt_chunk})}\n\n"
-            gpt_response_full += gpt_chunk
-        try:
-            tts_response: bytes = await generate_tts_audio_async(gpt_response_full, tts_id)
-            tts_content = base64.b64encode(tts_response).decode('utf-8')
-            yield f"data: {json.dumps({'step': 'tts_audio', 'content': tts_content})}\n\n"
-        except HTTPException as e:
-            yield f"data: {json.dumps({'step': 'error', 'message': e.detail})}\n\n"
-            raise
-        grammar_feedback = await generate_grammar_feedback(transcription, country)
+
+        send_queue = asyncio.Queue()
+
+        async def process_gpt_and_tts() -> str:
+            gpt_response_full = ""
+            buffer = ""
+            sentence_end_pattern = re.compile(r'([.!?])')
+
+            async for gpt_chunk in generate_gpt_response(chat_id, transcription, title, country, mdb):
+                gpt_response_full += gpt_chunk
+                buffer += gpt_chunk
+                await send_queue.put(
+                    json.dumps({'step': 'gpt_response', 'content': gpt_chunk})
+                )
+                sentences = []
+                while True:
+                    match = sentence_end_pattern.search(buffer)
+                    if match:
+                        end_idx = match.end()
+                        sentence = buffer[:end_idx].strip()
+                        if sentence:
+                            sentences.append(sentence)
+                        buffer = buffer[end_idx:].strip()
+                    else:
+                        break
+                for sentence in sentences:
+                    sentence_id = str(uuid.uuid4())
+                    try:
+                        tts_response = await generate_tts_audio_async(sentence, tts_id)
+                        tts_content = base64.b64encode(tts_response).decode('utf-8')
+                        await send_queue.put(
+                            json.dumps({
+                                'step': 'tts_audio',
+                                'sentence_id': sentence_id,
+                                'content': tts_content
+                            })
+                        )
+                    except Exception as e:
+                        await send_queue.put(
+                            json.dumps({'step': 'error', 'message': f'TTS Error: {str(e)}'})
+                        )
+
+            if buffer:
+                sentence_id = str(uuid.uuid4())
+                try:
+                    tts_response = await generate_tts_audio_async(buffer, tts_id)
+                    tts_content = base64.b64encode(tts_response).decode('utf-8')
+                    await send_queue.put(
+                        json.dumps({
+                            'step': 'tts_audio',
+                            'sentence_id': sentence_id,
+                            'content': tts_content
+                        })
+                    )
+                except Exception as e:
+                    await send_queue.put(
+                        json.dumps({'step': 'error', 'message': f'TTS Error: {str(e)}'})
+                    )
+
+            await send_queue.put(None)
+            return gpt_response_full
+
+        gpt_tts_task = asyncio.create_task(process_gpt_and_tts())
+        grammar_task = asyncio.create_task(generate_grammar_feedback(transcription, country))
+
+        while True:
+            try:
+                message = await asyncio.wait_for(send_queue.get(), timeout=10.0)
+                if message is None:  #
+                    break
+                yield f"data: {message}\n\n"
+            except asyncio.TimeoutError:
+                yield f"data: {json.dumps({'step': 'error', 'message': 'Timeout occurred while processing data'})}\n\n"
+                break
+
+        gpt_response_full = await gpt_tts_task
+
+        grammar_feedback = await grammar_task
         yield f"data: {json.dumps({'step': 'grammar_feedback', 'content': grammar_feedback})}\n\n"
         save_to_database(chat_id, transcription, gpt_response_full, grammar_feedback, mdb)
     except HTTPException as e:

@@ -50,7 +50,7 @@ async def analyze_pronunciation_endpoint(
         keys = ["AccuracyScore", "FluencyScore", "CompletenessScore", "PronScore"]
         scores = {k: pron_assessment[k] for k in keys}
         background_task = asyncio.create_task(
-            extract_weak_pronunciations(processed_words, user_id, mdb, threshold=75)
+            extract_weak_pronunciations(processed_words, user_id, mdb, threshold=100)
         )
         background_task.add_done_callback(done_callback)
         feedback_generator = get_pronunciation_feedback(processed_words,text)
