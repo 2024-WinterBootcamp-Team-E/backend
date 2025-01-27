@@ -89,9 +89,9 @@ async def get_grammar_feedback(prompt: str, country:str) -> str:
             "당신은 문법 전문가로서 사용자의 글쓰기 품질을 향상시키기 위해 간결한 피드백을 제공합니다.\n"
             "아래의 설명에 맞추어서 답을 해주세요.\n"
             f"1. 지정된 국가({country})에 맞춰 제안을 조정하세요.\n"
-            "2. 문법, 철자, 단어 선택이 해당 국가에 적합한지 확인하세요.\n"
+            "2. 문법, 단어 선택이 해당 국가에 적합한지 확인하세요.\n"
             "예를 들어, 영국식 영어에서는 'trousers'를, 미국식 영어에서는 'pants'를 사용하거나, "
-            "영국식 영어에서는 'trainers'를, 미국식 영어에서는 'sneakers'를 사용하는 식입니다. "
+            "영국식 영어에서는 'trainers'를, 미국식 영어에서는 'sneakers'를 사용하는 식입니다.\n"
             "3. 피드백은 명확하고 실행 가능하며 50단어 이내로 유지하세요.\n"
             "4. 사용자가 작성한 문장에서 문법이 잘못된 부분을 한국어로 구체적으로 지적하고, 개선 방법을 제안하세요. 불필요한 칭찬이나 인사는 포함하지 않습니다."
         )
@@ -104,7 +104,7 @@ async def get_grammar_feedback(prompt: str, country:str) -> str:
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4",
             messages=messages,
         )
         return response.choices[0].message.content
@@ -119,7 +119,7 @@ async def get_pronunciation_feedback(words: list, text:str) -> str:
             "당신은 영어 발음 교정 전문가입니다.\n"
             "아래 지시사항을 준수하여 한국어로 답변해주세요.\n"
             "1. 문제가 있는 단어만 구체적으로 지적합니다.\n"
-            "2. 발음 오류 원인과 개선 방법을 간단히 설명하는데 점수 언급은 하지 않습니다.\n"
+            "2. 발음 오류 원인과 개선 방법을 간단하게 설명합니다.\n"
             "3. 잘한 부분이나 불필요한 인사는 언급하지 않습니다..\n"
             "4. 답변은 총 30단어 이내로 작성합니다.\n"
             "5. 항상 존댓말을 사용하여 일관된 말투를 유지합니다."
