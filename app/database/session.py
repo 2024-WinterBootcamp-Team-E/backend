@@ -28,28 +28,21 @@ def get_db():
     finally:
         db.close()
 
-
 MONGODB_URL = os.getenv("MONGODB_URL")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-
     print("MongoDB 클라이언트 초기화 중...")
-    # 1) 동기 클라이언트
     sync_client = MongoClient(MONGODB_URL)
-    # 2) 비동기 클라이언트 (motor)
     async_client = AsyncIOMotorClient(MONGODB_URL)
-    # app.state에 보관
     app.state.mongo_sync_client = sync_client
     app.state.mongo_async_client = async_client
     try:
-        yield  # 애플리케이션 사용
+        yield
     finally:
         print("MongoDB 클라이언트 종료 중...")
-        # 리소스 정리
         sync_client.close()
         async_client.close()
-
 
 def get_mongo_db(request: Request):
     return request.app.state.mongo_sync_client["winterboote"]

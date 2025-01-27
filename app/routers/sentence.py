@@ -5,7 +5,6 @@ from app.services.speech_service import get_sentences_by_situation, get_sentence
     create_pronunciation_result, get_sentence_detail
 from app.schemas.ResultResponseModel import ResultResponseModel
 
-
 router = APIRouter(
     prefix="/speech",
     tags=["Speech"]
@@ -26,7 +25,6 @@ def fetch_sentence(sentence_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Sentence not found")
     response_data = get_sentence_detail(sentence)
     return ResultResponseModel(code=200, message="문장 조회 성공", data=response_data)
-
 
 @router.post("/{user_id}/results", summary="발음 테스트 결과 반환", description="특정 사용자의 발음 테스트 결과를 반환합니다.")
 def get_pronunciation_results(user_id: int, sentence_id: int, db: Session = Depends(get_db)):

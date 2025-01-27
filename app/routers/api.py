@@ -1,7 +1,5 @@
 from fastapi import APIRouter
-
 from . import users, chat, sentence, test, feedback
-
 
 router = APIRouter(
     prefix="/api/v1"

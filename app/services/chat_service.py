@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import io
 import json
@@ -8,22 +7,18 @@ from sqlalchemy.orm import Session
 from app.config.constants import CHARACTER_TTS_MAP
 from app.config.elevenlabs.text_to_speech_stream import generate_tts_audio_async
 from app.config.openAI.openai_service import get_gpt_response_limited, get_grammar_feedback, transcribe_audio
-from app.database.session import get_mongo_db, get_db
+from app.database.session import get_mongo_db
 from app.models.chat import Chat
 from app.schemas.chat import ChatRoomCreateRequest, Chatroomresponse
-from datetime import datetime
 from pymongo.database import Database
+
 def get_chatrooms(user_id: int, db: Session, skip: int = 0, limit: int = 100):
     chatrooms = db.query(Chat).filter(Chat.user_id == user_id).offset(skip).limit(limit).all()
     return [
         Chatroomresponse(
             chat_id=chatroom.chat_id,
-            #user_id=chatroom.user_id,
-            #score=chatroom.score,
             title=chatroom.title,
             character_name=chatroom.character_name,
-            #tts_id=chatroom.tts_id,
-            #created_at=chatroom.created_at,
             updated_at=chatroom.updated_at
         )
         for chatroom in chatrooms
@@ -33,8 +28,9 @@ def delete_chat(chat: Chat, mdb:Database, db: Session):
         db.delete(chat)
         db.commit()
         mdb["chats"].delete_one(
-            {"chat_id": chat.chat_id}  # 조건: chat_id가 일치하는 문서
+            {"chat_id": chat.chat_id}
         )
+
 def get_chat(user_id: int, chat_id: int, db: Session):
     return db.query(Chat).filter_by(user_id=user_id, chat_id=chat_id).first()
 
@@ -65,38 +61,27 @@ def create_chatroom(req: ChatRoomCreateRequest, user_id: int, db: Session):
 def create_chatroom_mongo(chat, mdb:Database):
     mdb["chats"].insert_one({"chat_id": chat.chat_id, "messages":[]})
 
-
+# 음성을 텍스트로 변환, GPT 응답, 음성 변환, 문법 피드백을 처리, 결과를 실시간 전달
 async def event_generator(chat_id: int, tts_id: str, file_content_io: io.BytesIO, filename: str, title:str, country:str, mdb: Database = Depends(get_mongo_db)):
     try:
-        # Step 1: Transcription
         transcription = await generate_transcription(file_content_io, filename)
         yield f"data: {json.dumps({'step': 'transcription', 'content': transcription})}\n\n"
-
         gpt_response_full = ""
         async for gpt_chunk in generate_gpt_response(chat_id, transcription, title, country, mdb):
             yield f"data: {json.dumps({'step': 'gpt_response', 'content': gpt_chunk})}\n\n"
             gpt_response_full += gpt_chunk
-
-        # Step 3: TTS 변환
         try:
             tts_response: bytes = await generate_tts_audio_async(gpt_response_full, tts_id)
             tts_content = base64.b64encode(tts_response).decode('utf-8')
             yield f"data: {json.dumps({'step': 'tts_audio', 'content': tts_content})}\n\n"
         except HTTPException as e:
-            # TTS 변환 실패 시 오류 메시지 전송
             yield f"data: {json.dumps({'step': 'error', 'message': e.detail})}\n\n"
-            raise  # 예외를 다시 발생시켜 이후 로직을 중단
-
-        # Grammar 피드백 작업 완료 대기
+            raise
         grammar_feedback = await generate_grammar_feedback(transcription, country)
         yield f"data: {json.dumps({'step': 'grammar_feedback', 'content': grammar_feedback})}\n\n"
-
-
         save_to_database(chat_id, transcription, gpt_response_full, grammar_feedback, mdb)
-
     except HTTPException as e:
         yield f"data: {json.dumps({'step': 'error', 'message': e.detail})}\n\n"
-
 
 async def generate_transcription(file_content_io: io.BytesIO, filename: str) -> str:
     try:
@@ -121,7 +106,6 @@ async def generate_grammar_feedback(transcription: str, country:str) -> str:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
 
-
 def save_to_database(chat_id: int, transcription: str, gpt_response_full: str, grammar_feedback: str, mdb: Database):
     print(f'grammar_feed')
     user_bubble = {
@@ -129,12 +113,10 @@ def save_to_database(chat_id: int, transcription: str, gpt_response_full: str, g
         "content": transcription,
         "grammar_feedback": grammar_feedback,
     }
-
     gpt_bubble = {
         "role": "assistant",
         "content": gpt_response_full,
     }
-
     try:
         mdb["chats"].update_one(
             {"chat_id": chat_id},

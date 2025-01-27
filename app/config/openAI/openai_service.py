@@ -7,9 +7,6 @@ from fastapi import HTTPException, UploadFile
 from dotenv import load_dotenv
 from app.models import Feedback
 
-
-
-
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -45,11 +42,9 @@ async def get_gpt_response_limited(chat_id: int, prompt: str, title:str, country
             "- Include relevant follow-up questions to keep the conversation flowing naturally.\n"
             "- Maintain an engaging and friendly tone.\n"
             "4. Handling No Differences: If there are no significant vocabulary differences for the subject, use standard English appropriate for the specified country."
-
         )
     }
     conversation = [system_message]
-
     if result and "messages" in result and result["messages"]:
         for message in result["messages"]:
             if isinstance(message, dict):
@@ -57,25 +52,21 @@ async def get_gpt_response_limited(chat_id: int, prompt: str, title:str, country
                     "role": message.get("role", "user"),
                     "content": message.get("content", "")
                 })
-
     conversation.append({
         "role": "user",
         "content": prompt
     })
-
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=conversation,
             stream=True,
         )
-
         for chunk in response:
             if "choices" in chunk and chunk["choices"]:
                 delta = chunk["choices"][0]["delta"]
                 if "content" in delta and delta["content"]:
                     yield delta["content"]
-
     except Exception as e:
         yield f"data: {json.dumps({'step': 'error', 'message': f'GPT 응답 생성 실패: {str(e)}'})}\n\n"
 
@@ -97,12 +88,10 @@ async def get_grammar_feedback(prompt: str, country:str) -> str:
             "4. 사용자가 작성한 문장에서 문법이 잘못된 부분을 한국어로 구체적으로 지적하고, 개선 방법을 제안하세요. 불필요한 칭찬이나 인사는 포함하지 않습니다."
         )
     }
-
     messages = [
         system_message,
         {"role": "user", "content": f"Please provide grammar feedback for the following text: {prompt}"}
     ]
-
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
@@ -113,7 +102,6 @@ async def get_grammar_feedback(prompt: str, country:str) -> str:
         raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
 
 async def get_pronunciation_feedback(words: list, text:str) -> str:
-    # 시스템 역할 설정
     system_message = {
         "role": "system",
         "content": (
@@ -126,9 +114,7 @@ async def get_pronunciation_feedback(words: list, text:str) -> str:
             "5. 항상 존댓말을 사용하여 일관된 말투를 유지합니다."
         )
     }
-
-    # 메시지 초기화
-    messages = [system_message]  # 시스템 메시지 추가
+    messages = [system_message]
     messages.append({
         "role": "user",
         "content": (
@@ -136,7 +122,6 @@ async def get_pronunciation_feedback(words: list, text:str) -> str:
             f"음절 피드백 {words}\n\n"
         )
     })
-
     try:
         # 비동기 OpenAI GPT 호출
         response = await openai.ChatCompletion.acreate(
@@ -150,41 +135,31 @@ async def get_pronunciation_feedback(words: list, text:str) -> str:
                 delta = chunk['choices'][0]['delta']
                 if 'content' in delta:
                     yield delta['content']
-
-
-
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to generate GPT feedback: {str(e)}"
         )
 
 async def sse_generator_wrapper(
-    generator,  # get_pronunciation_feedback에서 받은 async generator
+    generator,
     user_id: int,
     sentence_id: int,
     db,
     scores: dict
 ):
     """
-    generator로부터 chunk를 받으면서 SSE 형식("data: ...\n\n")으로 클라이언트에게 전송한다.
-    스트리밍이 끝난 뒤 누적된 전체 피드백을 DB에 저장한다.
+    generator로부터 chunk를 받으면서 SSE 형식으로 클라이언트에게 전송
+    스트리밍이 끝난 뒤 누적된 전체 피드백을 DB에 저장
     """
     yield f"pronscore: {scores['PronScore']}\n\n"
     feedback_accumulator = []
     try:
         async for chunk in generator:
             feedback_accumulator.append(chunk)
-            # SSE 포맷: data: {message}\n\n
             yield f"data: {chunk}\n\n"
-            # 너무 빠르게 전송 시 버퍼링 문제가 생길 수 있어 잠시 대기
             await asyncio.sleep(0.01)
-
         # 모든 스트리밍이 끝나면 전체 피드백을 합친다.
         feedback = "".join(feedback_accumulator)
-
-        # DB에 저장 로직
-        # 예: Feedback 테이블에 accuracy_score, fluency_score 등 저장
-        # 이미 Feedback model이 있다고 가정
         feedback_entry = db.query(Feedback).filter_by(user_id=user_id, sentence_id=sentence_id).first()
         if not feedback_entry:
             feedback_entry = Feedback(user_id=user_id, sentence_id=sentence_id)
@@ -196,10 +171,6 @@ async def sse_generator_wrapper(
         feedback_entry.pron_score = scores["PronScore"]
         feedback_entry.pronunciation_feedback = feedback
         db.commit()
-
     except Exception as e:
-        # 스트리밍 중 오류
         print(f"[ERROR] During streaming: {e}")
-        # SSE 스트리밍 도중 예외를 발생하면 연결이 강제로 끊길 수 있음
-        # 필요하다면 아래처럼 특정 SSE 메시지를 보낸 뒤 종료할 수도 있음
         raise HTTPException(status_code=500, detail=f"스트리밍 중 오류가 발생했습니다: {str(e)}")
