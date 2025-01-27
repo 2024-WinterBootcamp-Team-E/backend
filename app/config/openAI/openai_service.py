@@ -145,7 +145,8 @@ async def sse_generator_wrapper(
     user_id: int,
     sentence_id: int,
     db,
-    scores: dict
+    scores: dict,
+    azure_result
 ):
     """
     generator로부터 chunk를 받으면서 SSE 형식으로 클라이언트에게 전송
@@ -160,6 +161,14 @@ async def sse_generator_wrapper(
             await asyncio.sleep(0.01)
         # 모든 스트리밍이 끝나면 전체 피드백을 합친다.
         feedback = "".join(feedback_accumulator)
+
+        json_str = json.dumps(azure_result, ensure_ascii=False)
+        # SSE 형식: "result:<json>\n\n"
+        yield f"result:{json_str}\n\n"
+
+        # DB에 저장 로직
+        # 예: Feedback 테이블에 accuracy_score, fluency_score 등 저장
+        # 이미 Feedback model이 있다고 가정
         feedback_entry = db.query(Feedback).filter_by(user_id=user_id, sentence_id=sentence_id).first()
         if not feedback_entry:
             feedback_entry = Feedback(user_id=user_id, sentence_id=sentence_id)
