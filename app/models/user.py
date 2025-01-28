@@ -12,8 +12,6 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_deleted = Column(Boolean, default=False)
-    attendance_update = Column(Date, nullable=True)
-    attendance_data = Column(Text, nullable=True)
 
     chats = relationship("Chat", back_populates="user")
     feedbacks = relationship("Feedback", back_populates="user")
