@@ -6,7 +6,7 @@ from app.database.session import get_db, get_mongo_async_db, get_mongo_db
 from app.config.azure.pronunciation_feedback import analyze_pronunciation_with_azure
 from app.schemas.ResultResponseModel import ResultResponseModel
 from app.services.feedback_service import get_avg_score, preprocess_words, extract_weak_pronunciations, \
-    done_callback, change_audio_file
+    done_callback, change_audio_file, preprocess_words_async
 from app.models.sentence import Sentence
 from app.config.openAI.openai_service import get_pronunciation_feedback, sse_generator_wrapper
 from app.services.user_service import get_user
@@ -33,7 +33,7 @@ async def analyze_pronunciation_endpoint(
         text = sentence_entry.content
         change_audio = change_audio_file(audio_file)
         azure_result = await analyze_pronunciation_with_azure(text, change_audio)
-        print(f"[LOG] Azure Result: {azure_result}\n")
+        # print(f"[LOG] Azure Result: {azure_result}\n")
         if azure_result.get('RecognitionStatus') != 'Success':
             raise HTTPException(status_code=400, detail="인식 실패: 다시 시도해 주세요.")
         nbest_list = azure_result.get("NBest")
@@ -43,14 +43,15 @@ async def analyze_pronunciation_endpoint(
         words = nbest_data.get("Words")
         if not words:
             raise HTTPException(status_code=400, detail="Words 데이터가 비어 있습니다.")
-        processed_words = preprocess_words(words)
+        preprocess_task = asyncio.create_task(preprocess_words_async(words))
         pron_assessment = nbest_data.get("PronunciationAssessment")
         if not pron_assessment:
             raise HTTPException(status_code=400, detail="PronunciationAssessment 데이터가 없습니다.")
         keys = ["AccuracyScore", "FluencyScore", "CompletenessScore", "PronScore"]
         scores = {k: pron_assessment[k] for k in keys}
+        processed_words = await preprocess_task
         background_task = asyncio.create_task(
-            extract_weak_pronunciations(processed_words, user_id, mdb, threshold=100)
+            extract_weak_pronunciations(processed_words['processed'], user_id, mdb, threshold=100)
         )
         background_task.add_done_callback(done_callback)
         feedback_generator = get_pronunciation_feedback(processed_words,text)
@@ -60,7 +61,7 @@ async def analyze_pronunciation_endpoint(
             sentence_id=sentence_id,
             db=db,
             scores=scores,
-            azure_result=azure_result
+            preprocessed=processed_words
         )
         return StreamingResponse(
             wrapped_stream,

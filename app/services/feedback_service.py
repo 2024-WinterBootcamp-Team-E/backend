@@ -130,22 +130,61 @@ async def extract_weak_pronunciations(processed_words, user_id: int, mdb:AsyncIO
         print(f"[오류] {e}")
         raise ValueError(f"약점 발음을 추출하는 중 오류 발생: {e}")
 
-def preprocess_words(words: list) -> list:
-    processed = [
-        {
+
+def preprocess_words(words: list) -> dict:
+    processed = []
+    is_monotone_overall = False  # 전체 데이터의 isMonotone 플래그 초기화
+
+    for w in words:
+        # PronunciationAssessment 정보 추출
+        pa = w.get("PronunciationAssessment", {})
+        accuracy_score = pa.get("AccuracyScore")
+        error_type = pa.get("ErrorType")
+
+        # Feedback > Prosody > Break > ErrorTypes 추출
+        feedback = pa.get("Feedback", {})
+        prosody = feedback.get("Prosody", {})
+        break_info = prosody.get("Break", {})
+
+        # Syllables 정보 유지
+        syllables = [
+            {
+                "Syllable": s.get("Syllable"),
+                "Grapheme": s.get("Grapheme"),
+                "PronunciationAssessment": s.get("PronunciationAssessment")
+            }
+            for s in w.get("Syllables", [])
+        ]
+
+        # 처리된 단어 정보 구성
+        processed_word = {
             "Word": w.get("Word"),
-            "PronunciationAssessment": w.get("PronunciationAssessment"),
-            "Syllables": [
-                {
-                    "Syllable": s.get("Syllable"),
-                    "PronunciationAssessment": s.get("PronunciationAssessment")
-                }
-                for s in w.get("Syllables", [])
-            ]
+            "PronunciationAssessment": {
+                "AccuracyScore": accuracy_score,
+                "ErrorType": error_type,
+                "Break": break_info
+            },
+            "Syllables": syllables
         }
-        for w in words
-    ]
-    return processed
+
+        processed.append(processed_word)
+
+    intonation = prosody.get("Intonation", {})
+    intonation_error_types = intonation.get("ErrorTypes", [])
+    if(intonation_error_types != []):
+        is_monotone_overall = True
+    # 최종 반환: processed 리스트와 is_monotone_overall 플래그
+    result = {
+        "processed": processed,
+        "isMonotone": is_monotone_overall
+    }
+
+    print(f"[LOG] preprocess : {result}.")
+    return result
+
+async def preprocess_words_async(words: list) -> dict:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, preprocess_words, words)
 # 콜백을 통해 예외 로깅
 def done_callback(task: asyncio.Task):
     try:

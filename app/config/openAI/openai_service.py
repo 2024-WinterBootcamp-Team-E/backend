@@ -80,11 +80,11 @@ async def get_grammar_feedback(prompt: str, country:str) -> str:
         "content": (
             "당신은 문법 전문가로서 사용자의 글쓰기 품질을 향상시키기 위해 간결한 피드백을 제공합니다.\n"
             "아래의 설명에 맞추어서 답을 해주세요.\n"
-            f"1. 지정된 국가({country})에 맞춰 제안을 조정하세요.\n"
+            f"1. 기본적인 영어 문법 피드백 뿐만 아니라 지정된 국가({country})에 맞춰 제안을 조정하세요.\n"
             "2. 문법, 단어 선택이 해당 국가에 적합한지 확인하세요.\n"
             "예를 들어, 영국식 영어에서는 'trousers'를, 미국식 영어에서는 'pants'를 사용하거나, "
             "영국식 영어에서는 'trainers'를, 미국식 영어에서는 'sneakers'를 사용하는 식입니다.\n"
-            "3. 피드백은 명확하고 실행 가능하며 50단어 이내로 유지하세요.\n"
+            "3. 피드백은 명확하고 실행 가능하며 40단어 이내로 유지하세요.\n"
             "4. 사용자가 작성한 문장에서 문법이 잘못된 부분을 한국어로 구체적으로 지적하고, 개선 방법을 제안하세요. 불필요한 칭찬이나 인사는 포함하지 않습니다."
         )
     }
@@ -101,7 +101,7 @@ async def get_grammar_feedback(prompt: str, country:str) -> str:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"문법 피드백 생성 실패: {str(e)}")
 
-async def get_pronunciation_feedback(words: list, text:str) -> str:
+async def get_pronunciation_feedback(words: dict, text:str) -> str:
     system_message = {
         "role": "system",
         "content": (
@@ -109,17 +109,20 @@ async def get_pronunciation_feedback(words: list, text:str) -> str:
             "아래 지시사항을 준수하여 한국어로 답변해주세요.\n"
             "1. 문제가 있는 단어만 구체적으로 지적합니다.\n"
             "2. 발음 오류 원인과 개선 방법을 간단하게 설명합니다.\n"
-            "3. 잘한 부분이나 불필요한 인사는 언급하지 않습니다..\n"
-            "4. 답변은 총 30단어 이내로 작성합니다.\n"
-            "5. 항상 존댓말을 사용하여 일관된 말투를 유지합니다."
+            "3. syllable은 사용자의 발음, grapheme는 실제 문자입니다. 점수가 낮다면 제대로 된 음절을 제안하세요.\n"
+            "3. 최대 2개의 부분만 피드백하세요.\n"
+            "5. 잘한 부분이나 불필요한 인사는 언급하지 않습니다..\n"
+            "6. 답변은 총 30단어 이내로 작성합니다.\n"
+            "7. 항상 존댓말을 사용하여 일관된 말투를 유지합니다."
         )
     }
     messages = [system_message]
+
     messages.append({
         "role": "user",
         "content": (
-            f"사용자가 발음한 문장 {text}\n"
-            f"음절 피드백 {words}\n\n"
+            f"사용자가 발음한 문장: {text}\n"
+            f"발음 피드백 데이터:\n```\n{words['processed']}\n```"
         )
     })
     try:
@@ -146,25 +149,25 @@ async def sse_generator_wrapper(
     sentence_id: int,
     db,
     scores: dict,
-    azure_result
+    preprocessed
 ):
     """
     generator로부터 chunk를 받으면서 SSE 형식으로 클라이언트에게 전송
     스트리밍이 끝난 뒤 누적된 전체 피드백을 DB에 저장
     """
-    yield f"pronscore: {scores['PronScore']}\n\n"
+
     feedback_accumulator = []
     try:
         async for chunk in generator:
             feedback_accumulator.append(chunk)
             yield f"data: {chunk}\n\n"
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.005)
         # 모든 스트리밍이 끝나면 전체 피드백을 합친다.
         feedback = "".join(feedback_accumulator)
 
-        json_str = json.dumps(azure_result, ensure_ascii=False)
-        # SSE 형식: "result:<json>\n\n"
+        json_str = json.dumps(preprocessed, ensure_ascii=False)
         yield f"result:{json_str}\n\n"
+        yield f"pronscore: {scores['PronScore']}\n\n"
 
         # DB에 저장 로직
         # 예: Feedback 테이블에 accuracy_score, fluency_score 등 저장
