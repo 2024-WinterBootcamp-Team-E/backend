@@ -40,5 +40,5 @@ async def analyze_pronunciation_with_azure(text: str, audio_data: bytes):
 
     pronunciation_assessment_result_json = result.properties.get(
         PropertyId.SpeechServiceResponse_JsonResult)
-    print(f"[LOG] JSON Result: {pronunciation_assessment_result_json}")
+    # print(f"[LOG] JSON Result: {pronunciation_assessment_result_json}")
     return json.loads(pronunciation_assessment_result_json)
