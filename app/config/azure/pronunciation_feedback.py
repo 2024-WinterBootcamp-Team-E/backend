@@ -34,7 +34,7 @@ async def analyze_pronunciation_with_azure(text: str, audio_data: bytes):
     )
 
     pronunciation_config.enable_prosody_assessment()
-    recognizer = SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+    recognizer = SpeechRecognizer(speech_config=speech_config, language='en-US', audio_config=audio_config)
     pronunciation_config.apply_to(recognizer)
     result = recognizer.recognize_once()
 

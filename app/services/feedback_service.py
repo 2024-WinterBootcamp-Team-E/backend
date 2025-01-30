@@ -136,6 +136,8 @@ def preprocess_words(words: list) -> dict:
     is_monotone_overall = False  # 전체 데이터의 isMonotone 플래그 초기화
 
     for w in words:
+        if len(w.get("Word")) <=2:
+            continue
         # PronunciationAssessment 정보 추출
         pa = w.get("PronunciationAssessment", {})
         accuracy_score = pa.get("AccuracyScore")
@@ -146,16 +148,6 @@ def preprocess_words(words: list) -> dict:
         prosody = feedback.get("Prosody", {})
         break_info = prosody.get("Break", {})
 
-        # Syllables 정보 유지
-        syllables = [
-            {
-                "Syllable": s.get("Syllable"),
-                "Grapheme": s.get("Grapheme"),
-                "PronunciationAssessment": s.get("PronunciationAssessment")
-            }
-            for s in w.get("Syllables", [])
-        ]
-
         # 처리된 단어 정보 구성
         processed_word = {
             "Word": w.get("Word"),
@@ -164,7 +156,7 @@ def preprocess_words(words: list) -> dict:
                 "ErrorType": error_type,
                 "Break": break_info
             },
-            "Syllables": syllables
+            "Syllables": w.get("Syllables", [])
         }
 
         processed.append(processed_word)
